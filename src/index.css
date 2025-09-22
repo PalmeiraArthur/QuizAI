@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-plumpPurple: #5649B6;
+  --color-darkGunmetal: #211D31;
+  --color-pistachio: #8EDE5F;
+  --color-mandarin: #ED7844;
+  --color-amethyst: #975BCF;
+  --color-silver: #BABABA;
+  --color-raisinBlack: #14121E;
+}
+
+/* Variáveis globais ficam no :root */
+:root {
+  --font-base: "Poppins", sans-serif;
+}
+
+/* Estilo geral do app fica no body */
+body {
+  font-family: var(--font-base);
+  font-weight: 400;
+  font-style: normal;
+
+  color: rgba(255, 255, 255, 0.87);
+  background-color: var(--color-plumpPurple);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  display: flex;
+  justify-content: center;
+}
+
+@layer base {
+  button {
+    @apply transition-all duration-400;
+  }
+}
