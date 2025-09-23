@@ -34,7 +34,9 @@ body {
 }
 
 @layer base {
-  button {
-    @apply transition-all duration-400;
+
+  * {
+    @apply transition-all duration-300 ease-in-out;
   }
 }
+
