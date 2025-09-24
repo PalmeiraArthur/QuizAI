@@ -12,7 +12,7 @@ function Home() {
         <Navbar />
       </header>
 
-      <main className="bg-darkGunmetal mt-[100px] rounded-t-[13px] w-full min-h-screen flex flex-col gap-[30px] items-center 
+      <main className="bg-darkGunmetal mt-[100px] rounded-t-[13px] w-full min-h-screen flex flex-col gap-[30px] items-center shadow-[0px_0px_17px_3px_rgba(0,_0,_0,_0.4)]
       md:w-[1140px] md:mt-0 md:pt-[80px] md:rounded-none ">
         <ConnectionHub />
 

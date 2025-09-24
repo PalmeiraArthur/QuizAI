@@ -1,13 +1,13 @@
 // No quizIcon são criados dois props, o titulo e o cover que são associados a um quadrado com cor aleatoria gerado pelo getBackgroundColor.
 
-
+import { Link } from "react-router-dom";
 import { getBackgroundColor } from "./getBackgroundColor";
 
-function QuizIcon({ title, cover }) {
+function QuizIcon({ id, title, cover }) {
   const bgColor = getBackgroundColor(title);
 
   return (
-    <div className="flex flex-col items-center">
+    <Link to={`/quiz/${id}`} className="flex flex-col items-center">
       <div
         className="relative group w-[93px] h-[93px] rounded-[5px] shadow-md flex items-center justify-center overflow-hidden cursor-pointer md:w-[132px] md:h-[132px]"
         style={{ backgroundColor: bgColor }}
@@ -25,7 +25,7 @@ function QuizIcon({ title, cover }) {
       <p className="font-medium text-center mt-2 text-sm w-[132px] truncate">
         {title}
       </p>
-    </div>
+    </Link>
   );
 }
 
