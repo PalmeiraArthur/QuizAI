@@ -1,6 +1,6 @@
 <h1 align="center"><strong>QuizAI!</strong></h1>
 <p align="center">
-  <img src="https://media.discordapp.net/attachments/1419796953729994883/1419796954644349039/quizAiLogo.png?ex=68d31074&is=68d1bef4&hm=8dd663ba7611b47e16170b0f77106f4c7da21327c633c0171126c2e3ca4c877b&=&format=webp&quality=lossless&width=200&height=200" alt="Logo do QuizAI" />
+  <img src="https://media.discordapp.net/attachments/1419796953729994883/1419796954644349039/quizAiLogo.png?ex=68e62e34&is=68e4dcb4&hm=2b0385aab999e817d94ff6385f0a7989d3436d72a786e7066ea1066b7aa08511&=&format=webp&quality=lossless&width=200&height=200" alt="Logo do QuizAI" />
 </p>
 
 ---
