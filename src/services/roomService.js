@@ -2,7 +2,7 @@
 import api from './api';
 
 const roomService = {
-  
+
   createRoom: async (ownerId, isPublic = true, maxNumberOfPlayers = 10) => {
     const response = await api.post('/rooms', {
       ownerId,
@@ -11,7 +11,6 @@ const roomService = {
     });
     return response.data;
   },
-
 
   updateRoom: async (roomId, ownerId, quizId, options = {}) => {
     await api.patch(`/rooms/${roomId}`, {
@@ -28,6 +27,13 @@ const roomService = {
       headers: { 'Content-Type': 'application/json' }
     });
     return true;
+  },
+
+  getPublicRooms: async () => {
+    const response = await api.get('/rooms', {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return response.data;
   }
 };
 

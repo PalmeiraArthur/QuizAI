@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom"
 
+
 function ConnectionHub() {
     const navigate = useNavigate();
 
@@ -17,7 +18,7 @@ function ConnectionHub() {
                 Criar 
             </button>
 
-            <button className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer
+            <button onClick={() => navigate('/salas')} className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer
             md:w-[180px] md:h-[61px] md:text-[22px]">
                 Salas
             </button>
