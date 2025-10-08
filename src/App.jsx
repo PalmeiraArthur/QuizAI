@@ -33,7 +33,7 @@ function App() {
         <Route path="/user" element={<PublicRoute> <CreateUser /> </PublicRoute>}/>
 
         {/* Rotas protegidas - só acessa se TIVER usuário */}
-        <Route path="/home" element={<ProtectedRoute> <Home /> </ProtectedRoute>}/>
+        <Route path="/" element={<ProtectedRoute> <Home /> </ProtectedRoute>}/>
 
         <Route path="/criar-quiz" element={<ProtectedRoute> <CreateQuiz /> </ProtectedRoute>}/>
 

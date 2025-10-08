@@ -12,7 +12,6 @@ const CreateUser = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validações
     if (!username.trim()) {
       setError('Por favor, digite um nome de usuário');
       return;

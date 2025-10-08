@@ -23,7 +23,7 @@ function QuizPage() {
       <div className="flex relative justify-center items-center flex-col gap-[20px] bg-raisinBlack h-[500px] w-full
       md:w-full md:h-[700px] md:flex-row md:gap-[80px]">
 
-        <button onClick={() => navigate("/home")} className="absolute top-[10px] left-[10px] drop-shadow-2xl cursor-pointer">
+        <button onClick={() => navigate("/")} className="absolute top-[10px] left-[10px] drop-shadow-2xl cursor-pointer">
           <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none"><path fill="#5649B7" d="M40 20c0 11.046-8.954 20-20 20S0 31.046 0 20 8.954 0 20 0s20 8.954 20 20Z" /><path fill="#fff" d="m8.435 20.136 17.551-10.133v20.266L8.436 20.136Z" /></svg>
         </button>
 

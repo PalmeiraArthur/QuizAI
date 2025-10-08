@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import quizService from '../services/quizService';
+import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 
 function CreateQuiz() {
@@ -25,7 +26,6 @@ function CreateQuiz() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validações
         if (!formData.topic.trim()) {
             setError('Por favor, digite um tópico para o quiz');
             return;
@@ -47,6 +47,19 @@ function CreateQuiz() {
 
             console.log('Gerando quiz...', formData);
 
+            const userId = localStorage.getItem('userId');
+
+            const oldRoomId = localStorage.getItem('currentRoomId');
+            if (oldRoomId) {
+                try {
+                    await roomService.deleteRoom(oldRoomId, userId);
+                    console.log('Sala antiga deletada:', oldRoomId);
+                    localStorage.removeItem('currentRoomId');
+                } catch (err) {
+                    console.log('Nenhuma sala anterior ou erro ao deletar:', err.message);
+                }
+            }
+
             const quiz = await quizService.generateQuiz(
                 formData.topic.trim(),
                 formData.numberOfQuestions,
@@ -55,13 +68,21 @@ function CreateQuiz() {
 
             console.log('Quiz criado:', quiz);
 
-            // Salvar o quiz completo no localStorage
+            const room = await roomService.createRoom(userId, true, 10);
+            
+            console.log('Sala criada:', room);
+
+            await roomService.updateRoom(room.id, userId, quiz.id);
+            
+            console.log('Quiz vinculado à sala');
+
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
+            localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
+            localStorage.setItem('currentRoomId', room.id); // Salvar ID da sala atual
 
-            alert(`Quiz "${quiz.topic}" criado com sucesso!\nID: ${quiz.id}`);
+            alert(`Quiz "${quiz.topic}" criado com sucesso!\nCódigo da Sala: ${room.roomCode}`);
 
-            // Redirecionar para a página de jogar o quiz
-            navigate(`/play-quiz/${quiz.id}`);
+            navigate(`/play-quiz/${quiz.id}?roomId=${room.id}`);
 
         } catch (err) {
             console.error('Erro ao criar quiz:', err);
@@ -208,7 +229,7 @@ function CreateQuiz() {
                             {/* Botão de Cancelar */}
                             <button
                                 type="button"
-                                onClick={() => navigate('/home')}
+                                onClick={() => navigate('/')}
                                 disabled={loading}
                                 className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
                             >
