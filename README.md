@@ -1,4 +1,4 @@
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/b51044c2-2307-4c94-9ffc-f68050ad40e9" /><h1 align="center"><strong>QuizAI!</strong></h1>
+<h1 align="center"><strong>QuizAI!</strong></h1>
 <p align="center">
   <img src="https://media.discordapp.net/attachments/1419796953729994883/1419796954644349039/quizAiLogo.png?ex=68e62e34&is=68e4dcb4&hm=2b0385aab999e817d94ff6385f0a7989d3436d72a786e7066ea1066b7aa08511&=&format=webp&quality=lossless&width=200&height=200" alt="Logo do QuizAI" />
 </p>
