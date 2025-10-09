@@ -15,7 +15,7 @@ function Navbar() {
     return (
         <nav className="hidden bg-raisinBlack/80 fixed top-0 w-[1140px] h-[80px] rounded-b-md md:block">
             <div className="flex justify-between items-center h-full px-6">
-                <div className="flex items-center gap-3">
+                <div onClick={() => navigate('/')} className="flex items-center gap-3 cursor-pointer ">
                     <img src="/quizAiTransparente.svg" alt="Logo" className="w-22 h-auto" />
                 </div>
 

@@ -110,7 +110,7 @@ function Rooms() {
                 Seja o primeiro a criar uma sala!
               </p>
               <button
-                onClick={() => navigate('/quizteste')}
+                onClick={() => navigate('/cria-quiz')}
                 className="px-6 py-3 bg-pistachio text-raisinBlack font-bold rounded-lg hover:bg-green-500 transition-colors"
               >
                 Criar Quiz

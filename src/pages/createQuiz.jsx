@@ -14,6 +14,10 @@ function CreateQuiz() {
         numberOfQuestions: 5,
         numberOfAnswers: 4
     });
+    const [showModal, setShowModal] = useState(false);
+    const [createdQuiz, setCreatedQuiz] = useState(null);
+    const [createdRoom, setCreatedRoom] = useState(null);
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -49,6 +53,7 @@ function CreateQuiz() {
 
             const userId = localStorage.getItem('userId');
 
+            // Se já existe uma sala antiga, tenta deletar
             const oldRoomId = localStorage.getItem('currentRoomId');
             if (oldRoomId) {
                 try {
@@ -60,6 +65,7 @@ function CreateQuiz() {
                 }
             }
 
+            // Gera o quiz com base no formulário
             const quiz = await quizService.generateQuiz(
                 formData.topic.trim(),
                 formData.numberOfQuestions,
@@ -68,21 +74,22 @@ function CreateQuiz() {
 
             console.log('Quiz criado:', quiz);
 
+            // Cria uma nova sala e vincula ao quiz
             const room = await roomService.createRoom(userId, true, 10);
-            
             console.log('Sala criada:', room);
 
             await roomService.updateRoom(room.id, userId, quiz.id);
-            
             console.log('Quiz vinculado à sala');
 
+            // Salva localmente
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
             localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
-            localStorage.setItem('currentRoomId', room.id); // Salvar ID da sala atual
+            localStorage.setItem('currentRoomId', room.id);
 
-            alert(`Quiz "${quiz.topic}" criado com sucesso!\nCódigo da Sala: ${room.roomCode}`);
-
-            navigate(`/play-quiz/${quiz.id}?roomId=${room.id}`);
+            // ✅ Em vez de alert e navigate, mostra o modal
+            setCreatedQuiz(quiz);
+            setCreatedRoom(room);
+            setShowModal(true);
 
         } catch (err) {
             console.error('Erro ao criar quiz:', err);
@@ -90,16 +97,50 @@ function CreateQuiz() {
         } finally {
             setLoading(false);
         }
+
     };
 
     return (
         <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px] ">
-            
+
             <Navbar />
+
+            {showModal && createdQuiz && createdRoom && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+                    <div className="bg-raisinBlack rounded-2xl shadow-2xl p-8 w-[90%] max-w-lg border border-plumpPurple/30 text-center animate-fade-in">
+                        <h2 className="text-3xl font-bold text-pistachio mb-4">Quiz Criado com Sucesso! 🎉</h2>
+
+                        <p className="text-white text-lg mb-6">
+                            O quiz <strong className="text-pistachio">"{createdQuiz.topic}"</strong> foi criado com sucesso.
+                        </p>
+
+                        <div className="bg-darkGunmetal p-4 rounded-lg mb-6 border border-plumpPurple/30">
+                            <p className="text-gray-300 text-sm mb-1">Código da Sala:</p>
+                            <p className="text-pistachio text-2xl font-bold tracking-wide">{createdRoom.roomCode}</p>
+                        </div>
+
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => navigate(`/play-quiz/${createdQuiz.id}?roomId=${createdRoom.id}`)}
+                                className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
+                            >
+                                Jogar Agora ▶
+                            </button>
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             <main className="container mx-auto px-4 py-8 mt-[100px] md:mt-[100px]">
                 <div className="max-w-2xl mx-auto">
-                    
+
                     {/* Header */}
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-white mb-2">
