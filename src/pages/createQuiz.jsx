@@ -1,5 +1,5 @@
-// src/pages/createQuiz.jsx
-import { useState } from 'react';
+// src/pages/CreateQuiz.jsx
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import quizService from '../services/quizService';
 import roomService from '../services/roomService';
@@ -17,7 +17,22 @@ function CreateQuiz() {
     const [showModal, setShowModal] = useState(false);
     const [createdQuiz, setCreatedQuiz] = useState(null);
     const [createdRoom, setCreatedRoom] = useState(null);
+    
+    // Verificar se veio do Lobby
+    const [fromLobby, setFromLobby] = useState(false);
+    const [existingRoomId, setExistingRoomId] = useState(null);
 
+    useEffect(() => {
+        // Verificar se tem uma sala já criada no lobby
+        const lobbyState = localStorage.getItem('lobbyState');
+        const currentRoomId = localStorage.getItem('currentRoomId');
+        
+        if (lobbyState && currentRoomId) {
+            setFromLobby(true);
+            setExistingRoomId(currentRoomId);
+            console.log('Criando quiz para sala existente:', currentRoomId);
+        }
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -53,18 +68,6 @@ function CreateQuiz() {
 
             const userId = localStorage.getItem('userId');
 
-            // Se já existe uma sala antiga, tenta deletar
-            const oldRoomId = localStorage.getItem('currentRoomId');
-            if (oldRoomId) {
-                try {
-                    await roomService.deleteRoom(oldRoomId, userId);
-                    console.log('Sala antiga deletada:', oldRoomId);
-                    localStorage.removeItem('currentRoomId');
-                } catch (err) {
-                    console.log('Nenhuma sala anterior ou erro ao deletar:', err.message);
-                }
-            }
-
             // Gera o quiz com base no formulário
             const quiz = await quizService.generateQuiz(
                 formData.topic.trim(),
@@ -74,19 +77,48 @@ function CreateQuiz() {
 
             console.log('Quiz criado:', quiz);
 
-            // Cria uma nova sala e vincula ao quiz
-            const room = await roomService.createRoom(userId, true, 10);
-            console.log('Sala criada:', room);
+            let room;
 
-            await roomService.updateRoom(room.id, userId, quiz.id);
-            console.log('Quiz vinculado à sala');
+            if (fromLobby && existingRoomId) {
+                // Se veio do Lobby, apenas vincular o quiz à sala existente
+                console.log('Vinculando quiz à sala existente:', existingRoomId);
+                
+                await roomService.updateRoom(existingRoomId, userId, quiz.id);
+                
+                // Buscar dados da sala atualizada
+                const savedRoom = localStorage.getItem(`room_${existingRoomId}`);
+                room = savedRoom ? JSON.parse(savedRoom) : { id: existingRoomId };
+                room.quiz = quiz; // Adicionar quiz à sala
+                
+                console.log('Quiz vinculado à sala existente');
+            } else {
+                // Fluxo antigo: deletar sala antiga e criar nova
+                const oldRoomId = localStorage.getItem('currentRoomId');
+                if (oldRoomId) {
+                    try {
+                        await roomService.deleteRoom(oldRoomId, userId);
+                        console.log('Sala antiga deletada:', oldRoomId);
+                        localStorage.removeItem('currentRoomId');
+                    } catch (err) {
+                        console.log('Nenhuma sala anterior ou erro ao deletar:', err.message);
+                    }
+                }
+
+                // Cria uma nova sala e vincula ao quiz
+                room = await roomService.createRoom(userId, true, 10);
+                console.log('Sala criada:', room);
+
+                await roomService.updateRoom(room.id, userId, quiz.id);
+                console.log('Quiz vinculado à nova sala');
+            }
 
             // Salva localmente
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
             localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
             localStorage.setItem('currentRoomId', room.id);
+            localStorage.setItem('lastCreatedQuizId', quiz.id); // Flag para o Lobby saber que tem quiz novo
 
-            // ✅ Em vez de alert e navigate, mostra o modal
+            // Mostrar modal de sucesso
             setCreatedQuiz(quiz);
             setCreatedRoom(room);
             setShowModal(true);
@@ -97,12 +129,23 @@ function CreateQuiz() {
         } finally {
             setLoading(false);
         }
+    };
 
+    const handleBackToLobby = () => {
+        const lobbyId = localStorage.getItem('returnToLobby');
+        if (lobbyId) {
+            navigate(`/lobby/${lobbyId}`);
+        } else {
+            navigate('/');
+        }
+    };
+
+    const handlePlayNow = () => {
+        navigate(`/play-quiz/${createdQuiz.id}?roomId=${createdRoom.id}`);
     };
 
     return (
-        <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px] ">
-
+        <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
             <Navbar />
 
             {showModal && createdQuiz && createdRoom && (
@@ -116,27 +159,45 @@ function CreateQuiz() {
 
                         <div className="bg-darkGunmetal p-4 rounded-lg mb-6 border border-plumpPurple/30">
                             <p className="text-gray-300 text-sm mb-1">Código da Sala:</p>
-                            <p className="text-pistachio text-2xl font-bold tracking-wide">{createdRoom.roomCode}</p>
+                            <p className="text-pistachio text-2xl font-bold tracking-wide font-mono">{createdRoom.roomCode}</p>
                         </div>
 
-                        <div className="flex justify-center gap-4">
-                            <button
-                                onClick={() => navigate(`/play-quiz/${createdQuiz.id}?roomId=${createdRoom.id}`)}
-                                className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
-                            >
-                                Jogar Agora ▶
-                            </button>
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all"
-                            >
-                                Fechar
-                            </button>
+                        <div className="flex flex-col gap-3">
+                            {fromLobby ? (
+                                <>
+                                    <button
+                                        onClick={handleBackToLobby}
+                                        className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
+                                    >
+                                        ← Voltar para o Lobby
+                                    </button>
+                                    <button
+                                        onClick={handlePlayNow}
+                                        className="bg-plumpPurple text-white font-bold px-6 py-3 rounded-lg hover:bg-plumpPurple/80 transition-all"
+                                    >
+                                        ▶ Jogar Agora
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={handlePlayNow}
+                                        className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
+                                    >
+                                        ▶ Jogar Agora
+                                    </button>
+                                    <button
+                                        onClick={() => setShowModal(false)}
+                                        className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all"
+                                    >
+                                        Fechar
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
-
 
             <main className="container mx-auto px-4 py-8 mt-[100px] md:mt-[100px]">
                 <div className="max-w-2xl mx-auto">
@@ -144,11 +205,21 @@ function CreateQuiz() {
                     {/* Header */}
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-white mb-2">
-                            Criar Novo Quiz
+                            {fromLobby ? '🎯 Criar Quiz para sua Sala' : 'Criar Novo Quiz'}
                         </h1>
                         <p className="text-gray-400">
-                            Use IA para gerar um quiz personalizado
+                            {fromLobby 
+                                ? 'Configure o quiz que será jogado na sua sala'
+                                : 'Use IA para gerar um quiz personalizado'
+                            }
                         </p>
+                        {fromLobby && (
+                            <div className="mt-3 inline-block bg-plumpPurple/20 border border-plumpPurple px-4 py-2 rounded-lg">
+                                <p className="text-pistachio text-sm">
+                                    ✓ Sala já criada - Apenas configure o quiz
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Formulário */}
@@ -260,21 +331,21 @@ function CreateQuiz() {
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                         </svg>
-                                        Gerando Quiz com IA... (pode demorar)
+                                        Gerando Quiz com IA... (pode demorar até 1 min)
                                     </span>
                                 ) : (
-                                    'Gerar Quiz'
+                                    '🤖 Gerar Quiz com IA'
                                 )}
                             </button>
 
                             {/* Botão de Cancelar */}
                             <button
                                 type="button"
-                                onClick={() => navigate('/')}
+                                onClick={() => fromLobby ? navigate('/lobby') : navigate('/')}
                                 disabled={loading}
                                 className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
                             >
-                                Cancelar
+                                ← {fromLobby ? 'Voltar para o Lobby' : 'Cancelar'}
                             </button>
                         </form>
                     </div>

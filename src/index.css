@@ -8,12 +8,15 @@
   --color-amethyst: #975BCF;
   --color-silver: #BABABA;
   --color-raisinBlack: #14121E;
+
+  --radius-md: 5px; 
 }
 
 /* Variáveis globais ficam no :root */
 :root {
   --font-base: "Poppins", sans-serif;
 }
+
 
 /* Estilo geral do app fica no body */
 body {
