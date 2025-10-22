@@ -8,12 +8,15 @@
   --color-amethyst: #975BCF;
   --color-silver: #BABABA;
   --color-raisinBlack: #14121E;
+
+  --radius-md: 5px; 
 }
 
 /* Variáveis globais ficam no :root */
 :root {
   --font-base: "Poppins", sans-serif;
 }
+
 
 /* Estilo geral do app fica no body */
 body {
@@ -31,10 +34,90 @@ body {
 
   display: flex;
   justify-content: center;
+
 }
 
-@layer base {
-  button {
-    @apply transition-all duration-400;
+button {
+  cursor: pointer;
+}
+
+
+@keyframes float {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
+
+  50% {
+    transform: translateY(-30px) scale(1.2);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.8);
+  }
+}
+
+.animate-float {
+  animation: float 1.5s ease-out forwards;
+}
+
+.hover\:scale-102:hover {
+  transform: scale(1.02);
+}
+
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+
+@layer base {
+
+  * {
+    @apply transition-all duration-300 ease-in-out;
+  }
+}
+
+
+
+/* Cortes nos cantos */
+.cut-right-top {
+  clip-path: polygon(0 0, 95% 0, 100% 10%, 100% 100%, 0 100%);
+
+}
+
+.cut-right-bottom {
+  clip-path: polygon(100% 0, 100% 90%, 95% 100%, 0 100%, 0 0);
+}
+
+.cut-left-top {
+  clip-path: polygon(5% 0, 100% 0, 100% 100%, 0 100%, 0 10%);
+
+}
+
+.cut-left-bottom {
+ clip-path: polygon(0 0, 100% 0, 100% 100%, 5% 100%, 0 90%);
+}
+
+/* Hover e animação */
+.answer-button {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.answer-button:hover {
+  transform: scale(1.03);
+  
 }
