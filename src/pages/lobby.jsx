@@ -16,6 +16,7 @@ function Lobby() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [quiz, setQuiz] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // Novo estado para o modal de confirmação
 
   const userId = localStorage.getItem('userId');
 
@@ -124,29 +125,34 @@ function Lobby() {
       navigate('/');
       return;
     }
+    setShowConfirmModal(true); // Mostrar o modal de confirmação
+  };
 
-    const confirmLeave = window.confirm('Tem certeza que deseja sair? A sala será deletada.');
+  // Lidar com a confirmação de saída
+  const handleConfirmLeave = async () => {
+    try {
+      setShowConfirmModal(false);
+      setLoading(true);
+      
+      // Deletar a sala do backend
+      await roomService.deleteRoom(room.id, userId);
 
-    if (confirmLeave) {
-      try {
-        // Deletar a sala do backend
-        await roomService.deleteRoom(room.id, userId);
-
-        // Limpar localStorage
-        localStorage.removeItem('currentRoomId');
-        localStorage.removeItem(`room_${room.id}`);
-        if (quiz) {
-          localStorage.removeItem(`quiz_${quiz.id}`);
-        }
-
-        navigate('/');
-      } catch (err) {
-        console.error('Erro ao deletar sala:', err);
-        // Mesmo com erro, limpa e volta
-        localStorage.removeItem('currentRoomId');
-        localStorage.removeItem(`room_${room.id}`);
-        navigate('/');
+      // Limpar localStorage
+      localStorage.removeItem('currentRoomId');
+      localStorage.removeItem(`room_${room.id}`);
+      if (quiz) {
+        localStorage.removeItem(`quiz_${quiz.id}`);
       }
+
+      navigate('/');
+    } catch (err) {
+      console.error('Erro ao deletar sala:', err);
+      // Mesmo com erro, limpa e volta
+      localStorage.removeItem('currentRoomId');
+      localStorage.removeItem(`room_${room.id}`);
+      navigate('/');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -381,6 +387,45 @@ function Lobby() {
           </div>
         )}
 
+        {/* Modal de Confirmação */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-darkGunmetal rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+              <h3 className="text-2xl font-bold text-white mb-4">
+                Confirmar saída
+              </h3>
+              <p className="text-gray-300 mb-6">
+                Tem certeza que deseja sair? A sala será deletada e o quiz removido.
+              </p>
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  disabled={loading}
+                  className="px-6 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmLeave}
+                  disabled={loading}
+                  className="px-6 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Saindo...</span>
+                    </>
+                  ) : (
+                    'Sair do Lobby'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>

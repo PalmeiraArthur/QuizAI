@@ -1,9 +1,9 @@
 // src/pages/CreateQuiz.jsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import quizService from '../services/quizService';
 import roomService from '../services/roomService';
-import Navbar from '../components/navbar';
+
 
 function CreateQuiz() {
     const navigate = useNavigate();
@@ -14,26 +14,7 @@ function CreateQuiz() {
         numberOfQuestions: 5,
         numberOfAnswers: 4
     });
-    const [showModal, setShowModal] = useState(false);
-    const [createdQuiz, setCreatedQuiz] = useState(null);
-    const [createdRoom, setCreatedRoom] = useState(null);
     
-    // Verificar se veio do Lobby
-    const [fromLobby, setFromLobby] = useState(false);
-    const [existingRoomId, setExistingRoomId] = useState(null);
-
-    useEffect(() => {
-        // Verificar se tem uma sala já criada no lobby
-        const lobbyState = localStorage.getItem('lobbyState');
-        const currentRoomId = localStorage.getItem('currentRoomId');
-        
-        if (lobbyState && currentRoomId) {
-            setFromLobby(true);
-            setExistingRoomId(currentRoomId);
-            console.log('Criando quiz para sala existente:', currentRoomId);
-        }
-    }, []);
-
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -42,190 +23,110 @@ function CreateQuiz() {
         }));
     };
 
+    // handleSubmit modificado - cria sala após criar quiz
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        if (!formData.topic.trim()) {
-            setError('Por favor, digite um tópico para o quiz');
-            return;
-        }
-
-        if (formData.numberOfQuestions < 1 || formData.numberOfQuestions > 15) {
-            setError('O número de questões deve ser entre 1 e 15');
-            return;
-        }
-
-        if (formData.numberOfAnswers < 2 || formData.numberOfAnswers > 6) {
-            setError('O número de alternativas deve ser entre 2 e 6');
-            return;
-        }
+        if (loading) return;
 
         try {
             setLoading(true);
             setError(null);
 
-            console.log('Gerando quiz...', formData);
-
             const userId = localStorage.getItem('userId');
-
-            // Gera o quiz com base no formulário
-            const quiz = await quizService.generateQuiz(
-                formData.topic.trim(),
-                formData.numberOfQuestions,
-                formData.numberOfAnswers
-            );
-
-            console.log('Quiz criado:', quiz);
-
-            let room;
-
-            if (fromLobby && existingRoomId) {
-                // Se veio do Lobby, apenas vincular o quiz à sala existente
-                console.log('Vinculando quiz à sala existente:', existingRoomId);
-                
-                await roomService.updateRoom(existingRoomId, userId, quiz.id);
-                
-                // Buscar dados da sala atualizada
-                const savedRoom = localStorage.getItem(`room_${existingRoomId}`);
-                room = savedRoom ? JSON.parse(savedRoom) : { id: existingRoomId };
-                room.quiz = quiz; // Adicionar quiz à sala
-                
-                console.log('Quiz vinculado à sala existente');
-            } else {
-                // Fluxo antigo: deletar sala antiga e criar nova
-                const oldRoomId = localStorage.getItem('currentRoomId');
-                if (oldRoomId) {
-                    try {
-                        await roomService.deleteRoom(oldRoomId, userId);
-                        console.log('Sala antiga deletada:', oldRoomId);
-                        localStorage.removeItem('currentRoomId');
-                    } catch (err) {
-                        console.log('Nenhuma sala anterior ou erro ao deletar:', err.message);
-                    }
-                }
-
-                // Cria uma nova sala e vincula ao quiz
-                room = await roomService.createRoom(userId, true, 10);
-                console.log('Sala criada:', room);
-
-                await roomService.updateRoom(room.id, userId, quiz.id);
-                console.log('Quiz vinculado à nova sala');
+            if (!userId) {
+                throw new Error('Usuário não encontrado');
             }
 
-            // Salva localmente
-            localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
-            localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
-            localStorage.setItem('currentRoomId', room.id);
-            localStorage.setItem('lastCreatedQuizId', quiz.id); // Flag para o Lobby saber que tem quiz novo
+            // 1. Cleanup: tentar remover sala e quiz anteriores
+            const currentRoomId = localStorage.getItem('currentRoomId');
+            if (currentRoomId) {
+                try {
+                    await roomService.deleteRoom(currentRoomId, userId);
+                    console.log('✅ Sala anterior removida:', currentRoomId);
+                    
+                    // Se tinha quiz vinculado, remover também
+                    const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
+                    const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
+                    if (roomObj?.quizId) {
+                        try {
+                            await quizService.deleteQuiz(roomObj.quizId);
+                            localStorage.removeItem(`quiz_${roomObj.quizId}`);
+                            console.log('✅ Quiz anterior removido:', roomObj.quizId);
+                        } catch (err) {
+                            console.warn('⚠️ Falha ao remover quiz anterior:', err);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('⚠️ Falha ao remover sala anterior:', err);
+                    // Se falhou, tentar buscar sala do owner
+                    try {
+                        const ownerRoom = await roomService.getRoomByOwner(userId);
+                        if (ownerRoom?.id) {
+                            await roomService.deleteRoom(ownerRoom.id, userId);
+                            console.log('✅ Sala do owner removida:', ownerRoom.id);
+                            if (ownerRoom.quizId) {
+                                await quizService.deleteQuiz(ownerRoom.quizId);
+                                console.log('✅ Quiz do owner removido:', ownerRoom.quizId);
+                            }
+                        }
+                    } catch (ownerErr) {
+                        console.warn('⚠️ Falha ao buscar/remover sala do owner:', ownerErr);
+                    }
+                }
+                // Limpar localStorage
+                localStorage.removeItem(`room_${currentRoomId}`);
+                localStorage.removeItem('currentRoomId');
+            }
 
-            // Mostrar modal de sucesso
-            setCreatedQuiz(quiz);
-            setCreatedRoom(room);
-            setShowModal(true);
+            // 2. Criar novo quiz
+            const quiz = await quizService.createQuiz({
+                topic: formData.topic,
+                numberOfQuestions: formData.numberOfQuestions,
+                numberOfAnswers: formData.numberOfAnswers,
+                ownerId: userId
+            });
+
+            // 3. Criar nova sala
+            const room = await roomService.createRoom(userId, true, 10);
+
+            // 4. Vincular quiz à sala
+            await roomService.updateRoom(room.id, userId, quiz.id);
+
+            // 5. Salvar dados
+            localStorage.setItem('lastCreatedQuizId', quiz.id);
+            localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
+            localStorage.setItem('currentRoomId', room.id);
+            localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
+
+            // 6. Navegar para lobby
+            navigate(`/lobby/${room.id}`);
 
         } catch (err) {
-            console.error('Erro ao criar quiz:', err);
-            setError(err.message || 'Erro ao gerar quiz. Tente novamente.');
+            console.error('Erro ao criar quiz/sala:', err);
+            setError('Erro ao criar quiz. Por favor tente novamente.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleBackToLobby = () => {
-        const lobbyId = localStorage.getItem('returnToLobby');
-        if (lobbyId) {
-            navigate(`/lobby/${lobbyId}`);
-        } else {
-            navigate('/');
-        }
-    };
-
-    const handlePlayNow = () => {
-        navigate(`/play-quiz/${createdQuiz.id}?roomId=${createdRoom.id}`);
-    };
+    // handleCancel simplificado - só precisa navegar
+    const handleCancel = () => navigate('/');
 
     return (
         <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
-            <Navbar />
-
-            {showModal && createdQuiz && createdRoom && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                    <div className="bg-raisinBlack rounded-2xl shadow-2xl p-8 w-[90%] max-w-lg border border-plumpPurple/30 text-center animate-fade-in">
-                        <h2 className="text-3xl font-bold text-pistachio mb-4">Quiz Criado com Sucesso! 🎉</h2>
-
-                        <p className="text-white text-lg mb-6">
-                            O quiz <strong className="text-pistachio">"{createdQuiz.topic}"</strong> foi criado com sucesso.
-                        </p>
-
-                        <div className="bg-darkGunmetal p-4 rounded-lg mb-6 border border-plumpPurple/30">
-                            <p className="text-gray-300 text-sm mb-1">Código da Sala:</p>
-                            <p className="text-pistachio text-2xl font-bold tracking-wide font-mono">{createdRoom.roomCode}</p>
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            {fromLobby ? (
-                                <>
-                                    <button
-                                        onClick={handleBackToLobby}
-                                        className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
-                                    >
-                                        ← Voltar para o Lobby
-                                    </button>
-                                    <button
-                                        onClick={handlePlayNow}
-                                        className="bg-plumpPurple text-white font-bold px-6 py-3 rounded-lg hover:bg-plumpPurple/80 transition-all"
-                                    >
-                                        ▶ Jogar Agora
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={handlePlayNow}
-                                        className="bg-pistachio text-raisinBlack font-bold px-6 py-3 rounded-lg hover:bg-green-500 transition-all"
-                                    >
-                                        ▶ Jogar Agora
-                                    </button>
-                                    <button
-                                        onClick={() => setShowModal(false)}
-                                        className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all"
-                                    >
-                                        Fechar
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <main className="container mx-auto px-4 py-8 mt-[100px] md:mt-[100px]">
+            <main className="container mx-auto px-4 py-8 ">
                 <div className="max-w-2xl mx-auto">
-
-                    {/* Header */}
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-white mb-2">
-                            {fromLobby ? '🎯 Criar Quiz para sua Sala' : 'Criar Novo Quiz'}
+                            Criar Quiz
                         </h1>
                         <p className="text-gray-400">
-                            {fromLobby 
-                                ? 'Configure o quiz que será jogado na sua sala'
-                                : 'Use IA para gerar um quiz personalizado'
-                            }
+                            Configure o quiz que será jogado na sua sala.
                         </p>
-                        {fromLobby && (
-                            <div className="mt-3 inline-block bg-plumpPurple/20 border border-plumpPurple px-4 py-2 rounded-lg">
-                                <p className="text-pistachio text-sm">
-                                    ✓ Sala já criada - Apenas configure o quiz
-                                </p>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Formulário */}
                     <div className="bg-raisinBlack rounded-lg shadow-xl p-8">
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* Tópico */}
                             <div>
                                 <label className="block text-white font-semibold mb-2">
                                     Tópico do Quiz
@@ -244,7 +145,6 @@ function CreateQuiz() {
                                 </p>
                             </div>
 
-                            {/* Número de Questões */}
                             <div>
                                 <label className="block text-white font-semibold mb-2">
                                     Número de Questões
@@ -269,7 +169,6 @@ function CreateQuiz() {
                                 </p>
                             </div>
 
-                            {/* Número de Alternativas */}
                             <div>
                                 <label className="block text-white font-semibold mb-2">
                                     Alternativas por Questão
@@ -294,7 +193,6 @@ function CreateQuiz() {
                                 </p>
                             </div>
 
-                            {/* Erro */}
                             {error && (
                                 <div className="p-4 bg-red-900/50 border border-red-500 text-red-200 rounded-lg">
                                     <div className="flex items-start">
@@ -309,7 +207,6 @@ function CreateQuiz() {
                                 </div>
                             )}
 
-                            {/* Preview */}
                             <div className="p-4 bg-darkGunmetal/50 border border-plumpPurple/30 rounded-lg">
                                 <p className="text-gray-400 text-sm mb-2">Prévia:</p>
                                 <p className="text-white">
@@ -319,33 +216,21 @@ function CreateQuiz() {
                                 </p>
                             </div>
 
-                            {/* Botão de Submit */}
                             <button
                                 type="submit"
                                 disabled={loading || !formData.topic.trim()}
                                 className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
                             >
-                                {loading ? (
-                                    <span className="flex items-center justify-center">
-                                        <svg className="animate-spin h-6 w-6 mr-3" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Gerando Quiz com IA... (pode demorar até 1 min)
-                                    </span>
-                                ) : (
-                                    '🤖 Gerar Quiz com IA'
-                                )}
+                                {loading ? 'Gerando Quiz com IA... (pode demorar até 1 min)' : '🤖 Gerar Quiz com IA'}
                             </button>
 
-                            {/* Botão de Cancelar */}
                             <button
                                 type="button"
-                                onClick={() => fromLobby ? navigate('/lobby') : navigate('/')}
+                                onClick={handleCancel}
                                 disabled={loading}
                                 className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
                             >
-                                ← {fromLobby ? 'Voltar para o Lobby' : 'Cancelar'}
+                                ← Cancelar
                             </button>
                         </form>
                     </div>

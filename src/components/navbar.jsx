@@ -6,8 +6,7 @@ function Navbar() {
 
     const handleLogout = () => {
         if (window.confirm('Deseja realmente sair?')) {
-            localStorage.removeItem('userId');
-            localStorage.removeItem('username');
+            localStorage.clear();
             navigate('/user');
         }
     };
@@ -24,7 +23,7 @@ function Navbar() {
                         <p className="text-gray-400 text-xs">Bem-vindo,</p>
                         <p className="text-white font-semibold">{username}</p>
                     </div>
-                    
+
                     <button
                         onClick={handleLogout}
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"

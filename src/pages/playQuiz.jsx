@@ -2,19 +2,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import scoreService from '../services/scoreService';
+import questionService from '../services/questionService';
+import quizService from '../services/quizService';
+import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 import clickSound from '../assets/sounds/click.mp3'
+
 
 function PlayQuiz() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const roomId = searchParams.get('roomId');
+  const roomIdQuery = searchParams.get('roomId');
   const navigate = useNavigate();
 
   const [quiz, setQuiz] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [correctAnswer, setCorrectAnswer] = useState(null); // ← NOVO
+  const [correctAnswer, setCorrectAnswer] = useState(null);
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreId, setScoreId] = useState(null);
@@ -22,6 +26,7 @@ function PlayQuiz() {
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [showPointsAnimation, setShowPointsAnimation] = useState(false);
   const [pointsEarned, setPointsEarned] = useState(0);
+  const [loading, setLoading] = useState(false);
   const clickSoundRef = useRef(new Audio(clickSound));
 
 
@@ -39,49 +44,74 @@ function PlayQuiz() {
       const questionsArray = Array.from(quizData.questions);
       setQuiz({ ...quizData, questions: questionsArray });
 
-      if (roomId) {
+      // tenta criar scoreboard usando roomId da query ou currentRoomId no localStorage
+      const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+
+      if (effectiveRoomId) {
         try {
           const userId = localStorage.getItem('userId');
-          const scoreboard = await scoreService.createScoreboard(userId, roomId);
-          setScoreId(scoreboard.id);
-          console.log('Scoreboard criado:', scoreboard);
+          if (userId) {
+            const scoreboard = await scoreService.createScoreboard(userId, effectiveRoomId);
+            setScoreId(scoreboard.id);
+            console.log('Scoreboard criado:', scoreboard);
+          } else {
+            console.warn('Usuário não encontrado no localStorage; scoreboard não será criado.');
+          }
         } catch (err) {
           console.error('Erro ao criar scoreboard:', err);
+          // não bloqueia o jogo — permitimos fallback local
         }
+      } else {
+        console.log('Nenhuma sala disponível (query ou localStorage). Jogo seguirá sem scoreboard (fallback local).');
       }
     };
 
     initializeGame();
-  }, [id, roomId, navigate]);
+  }, [id, roomIdQuery, navigate]);
 
   const handleSelectAnswer = async (answerId) => {
-    if (isAnswerSubmitted || !scoreId) return;
+    if (isAnswerSubmitted) return;
 
     // 🔊 tocar som de clique
-    clickSoundRef.current.currentTime = 0;
-    clickSoundRef.current.play();
+    try {
+      clickSoundRef.current.currentTime = 0;
+      clickSoundRef.current.play().catch(()=>{});
+    } catch {}
+
+    setIsAnswerSubmitted(true);
+    setSelectedAnswer(answerId);
+
+    const userId = localStorage.getItem('userId');
+    const questionId = quiz.questions[currentQuestionIndex].id;
 
     try {
+      let result;
+      // preferir calcular via backend usando scoreboard
+      if (scoreId) {
+        result = await scoreService.calculateAnswerScore(
+          scoreId,
+          userId,
+          answerId
+        );
+      } else {
+        // fallback: buscar resposta correta e computar pontos localmente
+        const correctId = await questionService.getCorrectAnswer(questionId);
+        const points = correctId === answerId ? 100 : 0; // fallback points
+        result = { pointsEarned: points };
+      }
 
-      setIsAnswerSubmitted(true);
-      setSelectedAnswer(answerId);
-      const userId = localStorage.getItem('userId');
-
-      const result = await scoreService.calculateAnswerScore(
-        scoreId,
-        userId,
-        answerId
-      );
-
-      const points = result.pointsEarned;
+      const points = result.pointsEarned || 0;
       console.log('Pontos ganhos nesta rodada:', points);
 
-      // Se errou, encontrar a resposta certa para mostrar em verde
-      if (points === 0) {
-        // Como o backend não retorna qual é a certa, precisamos encontrar
-        // Mas por enquanto, vamos apenas marcar a errada em vermelho
-        // Você precisaria adicionar um endpoint no backend para retornar a resposta certa
-        // Ou salvar essa informação quando criar o quiz
+      // Se errou, buscar a resposta correta (se ainda não obtivemos)
+      if (points === 0 && !correctAnswer) {
+        try {
+          const correctId = await questionService.getCorrectAnswer(questionId);
+          setCorrectAnswer(correctId);
+          console.log('Resposta correta:', correctId);
+        } catch (error) {
+          console.error('Erro ao buscar resposta correta:', error);
+        }
       }
 
       // Mostrar animação de pontos
@@ -92,8 +122,8 @@ function PlayQuiz() {
       setScore(prevScore => prevScore + points);
 
       setAnsweredQuestions(prev => [...prev, {
-        questionId: quiz.questions[currentQuestionIndex].id,
-        answerId: answerId,
+        questionId,
+        answerId,
         pointsEarned: points
       }]);
 
@@ -101,7 +131,7 @@ function PlayQuiz() {
       setTimeout(() => {
         setShowPointsAnimation(false);
         handleNextQuestion();
-      }, 3000); // ← Mudei de 2000 para 3000
+      }, 3000);
 
     } catch (err) {
       console.error('Erro ao calcular pontuação:', err);
@@ -115,29 +145,102 @@ function PlayQuiz() {
     if (currentQuestionIndex < quiz.questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
-      setCorrectAnswer(null); // ← Limpar resposta certa
+      setCorrectAnswer(null);
       setIsAnswerSubmitted(false);
     } else {
       setShowResults(true);
     }
   };
 
-  const handlePlayAgain = () => {
-    setCurrentQuestionIndex(0);
-    setSelectedAnswer(null);
-    setCorrectAnswer(null);
-    setShowResults(false);
-    setScore(0);
-    setAnsweredQuestions([]);
-    setIsAnswerSubmitted(false);
-    navigate('/');
+  // Renomeando de handlePlayAgain para handleFinishAndCleanup
+  const handleFinishAndCleanup = async () => {
+    try {
+      setLoading(true); // Add loading state
+      const userId = localStorage.getItem('userId');
+      
+      // 1. Limpar scoreboard
+      if (scoreId) {
+        try {
+          await scoreService.deleteScoreboard(scoreId);
+          console.log('✅ Scoreboard removido:', scoreId);
+        } catch (err) {
+          console.warn('⚠️ Falha ao deletar scoreboard:', err);
+        }
+      }
+
+      // 2. Limpar sala e quiz associado
+      const currentRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      if (currentRoomId && userId) {
+        try {
+          // Buscar dados da sala
+          const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
+          const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
+
+          // Tentar deletar sala mesmo se não for owner
+          // (backend validará permissão)
+          try {
+            await roomService.deleteRoom(currentRoomId, userId);
+            console.log('✅ Sala removida:', currentRoomId);
+          } catch (err) {
+            console.warn('⚠️ Falha ao deletar sala:', err);
+            // Se falhou por não ser owner, tentar buscar sala do owner
+            if (err?.status === 403 || err?.status === 404) {
+              try {
+                const ownerRoom = await roomService.getRoomByOwner(userId);
+                if (ownerRoom?.id) {
+                  await roomService.deleteRoom(ownerRoom.id, userId);
+                  console.log('✅ Sala do owner removida:', ownerRoom.id);
+                }
+              } catch (ownerErr) {
+                console.warn('⚠️ Falha ao buscar/deletar sala do owner:', ownerErr);
+              }
+            }
+          }
+
+          // Limpar localStorage
+          localStorage.removeItem(`room_${currentRoomId}`);
+          localStorage.removeItem('currentRoomId');
+
+          // Se era owner, limpar quiz também
+          if (roomObj?.ownerId === userId && roomObj?.quizId) {
+            try {
+              await quizService.deleteQuiz(roomObj.quizId);
+              localStorage.removeItem(`quiz_${roomObj.quizId}`);
+              console.log('✅ Quiz removido:', roomObj.quizId);
+            } catch (err) {
+              console.warn('⚠️ Falha ao deletar quiz:', err);
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Falha ao limpar sala/quiz:', err);
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ Erro durante cleanup:', err);
+    } finally {
+      setLoading(false);
+      
+      // Reset do estado local
+      setCurrentQuestionIndex(0);
+      setSelectedAnswer(null);
+      setCorrectAnswer(null);
+      setShowResults(false);
+      setScore(0);
+      setAnsweredQuestions([]);
+      setIsAnswerSubmitted(false);
+      setScoreId(null);
+      
+      // Voltar para home
+      navigate('/');
+    }
   };
 
   // Função para determinar a cor da alternativa
   const getAnswerStyle = (answer) => {
     if (!isAnswerSubmitted) {
       // Antes de responder - estado normal
-      return 'bg-silver  hover:border-plumpPurple text-raisinBlack hover:scale-102 cursor-pointer';
+      return 'bg-silver hover:border-plumpPurple text-raisinBlack hover:scale-102 cursor-pointer';
     }
 
     // Depois de responder
@@ -150,6 +253,11 @@ function PlayQuiz() {
         // Errou - vermelho
         return 'bg-red-500 border-red-600 text-white scale-105';
       }
+    }
+
+    // ✅ Mostrar a resposta correta em verde quando errar
+    if (correctAnswer && answer.id === correctAnswer) {
+      return 'bg-green-500 border-green-600 text-white';
     }
 
     // Outras alternativas ficam normais
@@ -208,10 +316,10 @@ function PlayQuiz() {
 
               <div className="flex gap-4">
                 <button
-                  onClick={handlePlayAgain}
+                  onClick={handleFinishAndCleanup}
                   className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-6 rounded-lg hover:bg-green-500 transition-colors"
                 >
-                  Voltar para Home
+                  Finalizar e Voltar
                 </button>
               </div>
             </div>
@@ -273,28 +381,43 @@ function PlayQuiz() {
                       index === 2 ? 'cut-right-top' :
                         'cut-left-top';
 
+                // ✅ Verificar se é a resposta correta
+                const isCorrectAnswer = correctAnswer && answer.id === correctAnswer;
+                const isSelectedAnswer = answer.id === selectedAnswer;
+
                 return (
                   <button
                     key={answer.id}
                     onClick={() => handleSelectAnswer(answer.id)}
                     disabled={isAnswerSubmitted}
-                    className={`font-semibold w-[322px] h-[165px] text-[30px] text-center p-4 transition-all duration-500 rounded-[10px]  ${getAnswerStyle(answer)} answer-button
-        ${cutClass}
-        ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}
-      `}
+                    className={`font-semibold w-[322px] h-[165px] text-[30px] text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button
+                      ${cutClass}
+                      ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}`
+                    }
                   >
                     <div className="flex items-center justify-center">
                       <span className="flex-1">{answer.value}</span>
-                      {isAnswerSubmitted && answer.id === selectedAnswer && (
-                        pointsEarned > 0 ? (
-                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        ) : (
-                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                        )
+                      {isAnswerSubmitted && (
+                        <>
+                          {/* Selecionada e correta */}
+                          {isSelectedAnswer && pointsEarned > 0 && (
+                            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {/* Selecionada e errada */}
+                          {isSelectedAnswer && pointsEarned === 0 && (
+                            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {/* Resposta correta (quando errou) */}
+                          {isCorrectAnswer && !isSelectedAnswer && (
+                            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </>
                       )}
                     </div>
                   </button>
