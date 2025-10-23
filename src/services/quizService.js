@@ -1,45 +1,49 @@
 import api from './api';
 
+// Funções auxiliares para padronizar logs e erros, seguindo a convenção dos outros services.
+const logAction = (action, details) => {
+    console.log(`[QUIZ SERVICE] 🚀 ${action}`, details);
+};
+
+const throwValidationError = (message, details = null) => {
+    console.error(`[QUIZ SERVICE] ❌ Validação Falhou: ${message}`, details);
+    throw new Error(message);
+};
+
 const quizService = {
-    // Criar um novo quiz
-    createQuiz: async (quizData) => {
-        if (!quizData?.topic) {
-            throw new Error('Topic is required to create quiz');
+    
+    /**
+     * Gera um novo quiz usando o modelo de IA.
+     * Corresponde ao endpoint POST /quiz no backend.
+     * @param {object} quizData - Objeto contendo topic, numberOfQuestions, numberOfAnswers.
+     * @returns {Promise<object>} Dados do Quiz criado (QuizResponseDTO).
+     */
+    generateQuiz: async (quizData) => {
+        // Validação obrigatória baseada no QuizRequestDTO do backend
+        if (!quizData?.topic || !quizData?.numberOfQuestions || !quizData?.numberOfAnswers) {
+            throwValidationError('Dados incompletos. Tópico, número de questões e número de alternativas são obrigatórios.');
         }
 
-        console.log('🎲 Creating quiz:', quizData);
+        logAction('Iniciando geração de quiz', quizData);
 
+        // O corpo da requisição é o QuizRequestDTO
         const requestBody = {
             topic: quizData.topic,
             numberOfQuestions: quizData.numberOfQuestions,
             numberOfAnswers: quizData.numberOfAnswers
         };
 
+        // O endpoint correto é /quiz
         const response = await api.post('/quiz', requestBody);
 
-        console.log('✅ Quiz created successfully:', response.data);
+        logAction('Quiz gerado com sucesso', response.data);
+        
+        // Retorna o QuizResponseDTO (quiz com perguntas e respostas)
         return response.data;
     },
-
-    // Deletar um quiz
-    deleteQuiz: async (quizId) => {
-        if (!quizId) throw new Error('quizId é obrigatório');
-        return await api.delete(`/quizzes/${quizId}`);
-    },
-
-    // Buscar um quiz por ID
-    getQuizById: async (quizId) => {
-        if (!quizId) throw new Error('quizId é obrigatório');
-        const response = await api.get(`/quizzes/${quizId}`);
-        return response.data;
-    },
-
-    // Buscar quizzes de um usuário
-    getQuizzesByUser: async (userId) => {
-        if (!userId) throw new Error('userId é obrigatório');
-        const response = await api.get(`/quizzes/user/${userId}`);
-        return response.data;
-    }
+    
+    // Os métodos 'deleteQuiz', 'getQuizById' e 'getQuizzesByUser' foram removidos
+    // porque o QuizController do backend não expõe endpoints para estas operações.
 };
 
 export default quizService;

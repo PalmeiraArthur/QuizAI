@@ -20,7 +20,7 @@ function ConnectionHub() {
             setLoading(true);
 
             // Criar a sala no backend com configurações padrão
-            const newRoom = await roomService.createRoom(userId, true, 10);
+            const newRoom = await roomService.createRoom({ownerId: userId, isPublic: true,maxNumberOfPlayers: 10});
 
             // Salvar no localStorage
             localStorage.setItem('currentRoomId', newRoom.id);
@@ -29,7 +29,7 @@ function ConnectionHub() {
             console.log('Sala criada:', newRoom);
 
             // Redirecionar para o lobby específico da sala
-            navigate(`/lobby/${newRoom.id}`);
+            navigate(`/sala/${newRoom.id}`);
 
         } catch (err) {
             console.error('Erro ao criar sala:', err);
@@ -71,7 +71,7 @@ function ConnectionHub() {
             </button>
 
             <button 
-                onClick={() => navigate('/salas')} 
+                onClick={() => navigate('/achar-salas')} 
                 disabled={loading}
                 className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                 md:w-[180px] md:h-[61px] md:text-[22px]"
