@@ -5,7 +5,7 @@ import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 import toast, { Toaster } from 'react-hot-toast';
 
-function Lobby() {
+function Room() {
   const navigate = useNavigate();
   const { roomId } = useParams(); // Pegar o ID da sala pela URL
 
@@ -96,10 +96,7 @@ function Lobby() {
       setLoading(true);
       setError(null);
 
-      await roomService.updateRoom(room.id, userId, quiz?.id, {
-        isPublic,
-        maxNumberOfPlayers: maxPlayers
-      });
+      await roomService.updateRoom(room.id, {ownerId: userId, isPublic, maxNumberOfPlayers: maxPlayers, quizId: quiz?.id || null});
 
       const updatedRoom = {
         ...room,
@@ -432,4 +429,4 @@ function Lobby() {
   );
 }
 
-export default Lobby;
+export default Room;

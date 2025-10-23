@@ -119,9 +119,9 @@ function Rooms() {
                   className="bg-raisinBlack w-[300px] h-[230px] rounded-md shadow-xl p-6 flex flex-col gap-6 justify-center items-center "
                 >
                   {/* Header do Card */}
-                  <div className="flex flex-col w-fit ">
+                  <div className="flex flex-col w-fit gap-1 ">
 
-                    <h3 className="text-[28px] font-semibold text-white">
+                    <h3 className="text-[24px] font-semibold text-white">
                       {room.quizTopic}
                     </h3>
                     <span className="flex justify-center items-center bg-emerald-950 py-1 text-pistachio text-xs font-semibold rounded-md">

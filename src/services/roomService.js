@@ -1,111 +1,106 @@
 import api from './api';
 
+const logAction = (action, details) => {
+    console.log(`[ROOM SERVICE] 🚀 ${action}`, details);
+};
+
+const throwValidationError = (message, details = null) => {
+    console.error(`[ROOM SERVICE] ❌ Validação Falhou: ${message}`, details);
+    throw new Error(message);
+};
+
 const roomService = {
+    createRoom: async ({ ownerId, isPublic = true, maxNumberOfPlayers = 10 }) => {
+        if (!ownerId) {
+            throwValidationError('Usuário não identificado. Faça login novamente.');
+        }
 
-  // 🔹 Cria uma sala com validação do ownerId
-  createRoom: async (ownerId, isPublic = true, maxNumberOfPlayers = 10) => {
-    if (!ownerId) {
-      console.error('❌ Erro: ownerId não encontrado ao criar sala');
-      throw new Error('Usuário não identificado. Faça login novamente.');
-    }
+        logAction('Criando sala', { ownerId, isPublic, maxNumberOfPlayers });
 
-    console.log('🟢 Criando sala para o usuário:', ownerId);
+        const payload = {
+            ownerId,
+            isPublic,
+            maxNumberOfPlayersInRoom: maxNumberOfPlayers,
+        };
 
-    const response = await api.post('/rooms', {
-      ownerId, // ⚠️ Confirme no backend se o campo é exatamente "ownerId"
-      isPublic,
-      maxNumberOfPlayersInRoom: maxNumberOfPlayers
-    });
+        try {
+            const response = await api.post('/rooms', payload);
+            logAction('Sala criada com sucesso', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('[ROOM SERVICE] Erro ao criar sala:', error);
+            throw new Error(error.response?.data?.message || 'Erro ao criar sala');
+        }
+    },
 
-    console.log('✅ Sala criada com sucesso:', response.data);
+    joinRoom: async (roomCode, userId) => {
+        if (!roomCode || !userId) {
+            throwValidationError('Código da sala ou ID do usuário inválidos para entrar.');
+        }
 
-    return response.data;
-  },
+        logAction('Entrando na sala', { roomCode, userId });
 
-  // 🔹 Atualiza sala (vincula quiz, muda opções, etc)
-  updateRoom: async (roomId, ownerId, quizId, options = {}) => {
-    if (!roomId || !ownerId) {
-      console.error('❌ updateRoom chamado sem roomId ou ownerId', { roomId, ownerId });
-      throw new Error('Dados inválidos para atualização da sala.');
-    }
+        const response = await api.post(`/rooms/join/${roomCode}`, { userId });
 
-    console.log('🟢 Atualizando sala:', roomId, 'com ownerId:', ownerId);
+        logAction('Entrada na sala bem-sucedida', response.data);
+        return response.data;
+    },
 
-    const response = await api.patch(`/rooms/${roomId}`, {
-      ownerId,
-      quizId,
-      ...options
-    });
+    exitRoom: async (scoreId) => {
+        if (!scoreId) {
+            throwValidationError('ID do Score não fornecido para sair da sala.');
+        }
 
-    console.log('✅ Sala atualizada com sucesso:', response.data);
-    return response.data;
-  },
+        logAction('Saindo da sala (deletando Score)', { scoreId });
+        await api.delete(`/rooms/exit/${scoreId}`);
+        logAction('Saída da sala bem-sucedida');
+        return;
+    },
 
-  // 🔹 Deleta sala
-  deleteRoom: async (roomId, userId) => {
-    if (!roomId || !userId) {
-      console.error('❌ deleteRoom chamado sem roomId ou userId', { roomId, userId });
-      throw new Error('Dados inválidos para deletar sala.');
-    }
+    updateRoom: async (roomId, updateData) => {
+        // updateData agora é o objeto { ownerId, isPublic, maxNumberOfPlayers, quizId }
+        const { ownerId } = updateData;
 
-    console.log('🟠 Deletando sala:', roomId, 'com userId:', userId);
+        // A validação agora checa se o updateData é válido
+        if (!roomId || !ownerId) {
+            throwValidationError('Dados inválidos para atualização da sala.', { roomId, ownerId });
+        }
 
-    const response = await api.delete(`/rooms/${roomId}`, {
-      data: JSON.stringify(userId),
-      headers: { 'Content-Type': 'application/json' }
-    });
+        logAction('Atualizando sala', { roomId, updateData });
 
-    console.log('✅ Sala deletada com sucesso');
-    return response.data;
-  },
+        const payload = {
+            ownerId,
+            isPublic: updateData.isPublic,
+            maxNumberOfPlayers: updateData.maxNumberOfPlayers,
+            quizId: updateData.quizId // O backend aceita null
+        };
 
-  // 🔹 Busca todas as salas públicas
-  getPublicRooms: async () => {
-    console.log('🔍 Buscando salas públicas...');
-    const response = await api.get('/rooms', {
-      headers: { 'Content-Type': 'application/json' }
-    });
-    return response.data;
-  },
+        const response = await api.patch(`/rooms/${roomId}`, payload);
+        logAction('Sala atualizada com sucesso', response.data);
+        return response.data;
+    },
 
-  // tenta obter a sala do owner (vários endpoints / fallback)
-  getRoomByOwner: async (ownerId) => {
-    if (!ownerId) throw new Error('ownerId required');
+    deleteRoom: async (roomId, userId) => {
+        if (!roomId || !userId) {
+            throwValidationError('Dados inválidos para deletar sala.', { roomId, userId });
+        }
 
-    // 1) endpoint específico (se existir)
-    try {
-      const resp = await api.get(`/rooms/owner/${ownerId}`);
-      if (resp?.data) return resp.data;
-    } catch (e) {
-      // ignora e tenta outras opções
-      console.debug('rooms/owner endpoint não disponível ou retornou erro', e?.message || e);
-    }
+        logAction('Deletando sala', { roomId, userId });
+        await api.delete(`/rooms/${roomId}`, {
+            data: JSON.stringify(userId),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        logAction('Sala deletada com sucesso');
+        return;
+    },
 
-    // 2) query por ownerId (retorna array)
-    try {
-      const resp = await api.get(`/rooms`, { params: { ownerId } });
-      const data = resp?.data;
-      if (Array.isArray(data) && data.length) {
-        // retorna a primeira sala do owner
-        return data[0];
-      }
-      // se backend retorna objeto, retorne-o
-      if (data && data.ownerId === ownerId) return data;
-    } catch (e) {
-      console.debug('GET /rooms?ownerId erro', e?.message || e);
-    }
-
-    // 3) fallback: buscar salas públicas e filtrar localmente
-    try {
-      const publicRooms = await roomService.getPublicRooms();
-      const found = publicRooms.find(r => String(r.ownerId) === String(ownerId));
-      if (found) return found;
-    } catch (e) {
-      console.debug('fallback getPublicRooms falhou', e?.message || e);
-    }
-
-    return null;
-  }
+    getPublicRooms: async () => {
+        logAction('Buscando salas públicas');
+        const response = await api.get('/rooms');
+        return response.data;
+    },
 };
 
 export default roomService;
