@@ -1,9 +1,7 @@
-// src/pages/Lobby.jsx
+// src/pages/room.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import roomService from '../services/roomService';
-import Navbar from '../components/navbar';
-import toast, { Toaster } from 'react-hot-toast';
 
 function Room() {
   const navigate = useNavigate();
@@ -14,9 +12,8 @@ function Room() {
   const [isPublic, setIsPublic] = useState(true);
   const [maxPlayers, setMaxPlayers] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [quiz, setQuiz] = useState(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false); // Novo estado para o modal de confirmação
+
 
   const userId = localStorage.getItem('userId');
 
@@ -27,18 +24,6 @@ function Room() {
     }
   }, [roomId]);
 
-  // Verificar se voltou do CreateQuiz com quiz criado
-  useEffect(() => {
-    const lastQuizId = localStorage.getItem('lastCreatedQuizId');
-    if (lastQuizId) {
-      const savedQuiz = localStorage.getItem(`quiz_${lastQuizId}`);
-      if (savedQuiz) {
-        setQuiz(JSON.parse(savedQuiz));
-        localStorage.removeItem('lastCreatedQuizId'); // Limpar flag
-      }
-    }
-  }, []);
-
   const loadRoomData = () => {
     const savedRoom = localStorage.getItem(`room_${roomId}`);
     if (savedRoom) {
@@ -46,117 +31,42 @@ function Room() {
       setRoom(roomData);
       setIsPublic(roomData.isPublic);
       setMaxPlayers(roomData.maxNumberOfPlayers);
-
-      // Verificar se já tem quiz associado
-      if (roomData.quizId) {
-        const savedQuiz = localStorage.getItem(`quiz_${roomData.quizId}`);
-        if (savedQuiz) {
-          setQuiz(JSON.parse(savedQuiz));
-        }
-      }
     }
   };
 
-  // Ir para criar quiz
-  const handleCreateQuiz = () => {
-    if (!room) {
-      setError('Erro: Sala não encontrada');
-      return;
-    }
-
-    // Salvar o ID da sala atual para voltar depois
-    localStorage.setItem('returnToLobby', room.id);
-
-    navigate('/criar-quiz');
-  };
-
-  // Iniciar partida
-  const handleStartGame = () => {
-    if (!quiz) {
-      setError('Adicione um quiz antes de iniciar a partida');
-      return;
-    }
-
-    navigate(`/play-quiz/${quiz.id}?roomId=${room.id}`);
-  };
-
-
-  // Compartilhar código
-  const handleShareCode = () => {
-    if (room?.roomCode) {
-      navigator.clipboard.writeText(room.roomCode);
-      toast.success('Código copiado!');
-    }
-  };
   // Atualizar configurações da sala
   const handleUpdateRoomSettings = async () => {
-    if (!room) return;
 
-    try {
-      setLoading(true);
-      setError(null);
+    await roomService.updateRoom(room.id, {ownerId: userId, isPublic, maxNumberOfPlayers: maxPlayers, quizId: quiz?.id || null});
 
-      await roomService.updateRoom(room.id, {ownerId: userId, isPublic, maxNumberOfPlayers: maxPlayers, quizId: quiz?.id || null});
-
-      const updatedRoom = {
-        ...room,
-        isPublic,
-        maxNumberOfPlayers: maxPlayers,
-        quizId: quiz?.id
-      };
-      setRoom(updatedRoom);
-      localStorage.setItem(`room_${room.id}`, JSON.stringify(updatedRoom));
-      toast.success('Configurações atualizadas com sucesso!');
-
-    } catch (err) {
-      console.error('Erro ao atualizar sala:', err);
-      setError(err.message || 'Erro ao atualizar configurações');
-    } finally {
-      setLoading(false);
-    }
+    const updatedRoom = {
+      ...room,
+      isPublic,
+      maxNumberOfPlayers: maxPlayers,
+      quizId: quiz?.id
+    };
+    setRoom(updatedRoom);
+    localStorage.setItem(`room_${room.id}`, JSON.stringify(updatedRoom));
   };
 
   // Sair do lobby
   const handleLeaveLobby = async () => {
-    if (!room) {
-      navigate('/');
-      return;
-    }
-    setShowConfirmModal(true); // Mostrar o modal de confirmação
-  };
-
-  // Lidar com a confirmação de saída
-  const handleConfirmLeave = async () => {
-    try {
-      setShowConfirmModal(false);
-      setLoading(true);
-      
+  
       // Deletar a sala do backend
       await roomService.deleteRoom(room.id, userId);
 
       // Limpar localStorage
       localStorage.removeItem('currentRoomId');
       localStorage.removeItem(`room_${room.id}`);
-      if (quiz) {
-        localStorage.removeItem(`quiz_${quiz.id}`);
-      }
 
       navigate('/');
-    } catch (err) {
-      console.error('Erro ao deletar sala:', err);
-      // Mesmo com erro, limpa e volta
-      localStorage.removeItem('currentRoomId');
-      localStorage.removeItem(`room_${room.id}`);
-      navigate('/');
-    } finally {
-      setLoading(false);
-    }
+
   };
 
   // Se não tem sala carregada, mostrar loading
   if (!room) {
     return (
-      <div className="min-h-screen bg-darkGunmetal flex items-center justify-center">
+      <div className="min-h-screen bg-darkGunmetal flex items-center justify-center w-full">
         <div className="text-white text-2xl">Carregando lobby...</div>
       </div>
     );
@@ -164,38 +74,6 @@ function Room() {
 
   return (
     <div className="min-h-screen bg-raisinBlack flex justify-center w-[1140px]">
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          success: {
-            style: {
-              fontFamily: '"Poppins", sans-serif',
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#5649B6',
-              background: 'white',
-            },
-            iconTheme: {
-              primary: '#5649B6',
-              secondary: 'white',
-            },
-          },
-          error: {
-            style: {
-              fontFamily: '"Poppins", sans-serif',
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#ef4444',
-              background: 'white',
-            },
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: 'white',
-            },
-          },
-        }}
-      />
-
       <main className="container textce mx-auto px-4 py-8">
 
         {/* Header */}
@@ -311,44 +189,6 @@ function Room() {
               </button>
             </div>
 
-            {/* Escolher Quiz */}
-            <div className="bg-darkGunmetal rounded-md p-4 max-h-full h-full flex flex-col gap-6 ">
-              <div className='bg-raisinBlack flex flex-row justify-between items-center gap-2 px-4 py-3 rounded-md'>
-                <h2 className="text-3xl font-bold text-white">Escolher Quiz</h2>
-                <button
-                  onClick={handleCreateQuiz}
-                  disabled={loading}
-                  className="px-3 py-1.5 h-fit rounded-md bg-pistachio text-white font-bold  hover:bg-white hover:text-pistachio disabled:opacity-50 disabled:cursor-not-allowed transition text-xl shadow-lg flex items-center justify-center gap-3"
-                >
-                  <span className="text-3xl">+</span>
-                  Criar Quiz
-                </button>
-              </div>
-
-              {quiz ? (
-                <div className="bg-darkGunmetal p-6 rounded-lg border-2 border-pistachio">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-2xl font-bold text-pistachio mb-2">{quiz.topic}</h3>
-                      <p className="text-gray-400">
-                        {quiz.questions?.length || 0} questões • {quiz.questions?.[0]?.answers?.length || 0} alternativas cada
-                      </p>
-
-                    </div>
-                  </div>
-
-
-                </div>
-              ) : (
-                <div className="text-center">
-                  <p className="text-gray-400 mb-6 text-lg">
-                    Nenhum quiz selecionado. Crie um quiz personalizado com IA!
-                  </p>
-
-                </div>
-              )}
-            </div>
-            {/* Botões ações */}
             <div className="mt-6 flex gap-20 justify-center">
               <button
                 onClick={handleLeaveLobby}
@@ -358,71 +198,9 @@ function Room() {
                 ← Sair do Lobby
               </button>
 
-              <button
-                onClick={handleStartGame}
-                disabled={loading || !quiz}  // ← Adicione || !quiz
-                className="bg-pistachio text-white font-semibold text-[24px] py-3 px-8 rounded-lg hover:bg-white hover:text-pistachio disabled:opacity-50 transition"
-              >
-                Iniciar partida
-              </button>
             </div>
           </div>
         </div>
-
-        {/* Erro */}
-        {error && (
-          <div className="mt-6 bg-red-900/50 border-2 border-red-500 text-red-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <svg className="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <p className="font-semibold">Erro</p>
-                <p className="text-sm">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Confirmação */}
-        {showConfirmModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-darkGunmetal rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-              <h3 className="text-2xl font-bold text-white mb-4">
-                Confirmar saída
-              </h3>
-              <p className="text-gray-300 mb-6">
-                Tem certeza que deseja sair? A sala será deletada e o quiz removido.
-              </p>
-              <div className="flex justify-end gap-4">
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  disabled={loading}
-                  className="px-6 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleConfirmLeave}
-                  disabled={loading}
-                  className="px-6 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <span>Saindo...</span>
-                    </>
-                  ) : (
-                    'Sair do Lobby'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
       </main>
     </div>

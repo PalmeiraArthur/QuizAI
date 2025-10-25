@@ -1,10 +1,6 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
-const logAction = (action, details) => {
-    console.log(`[WEBSOCKET SERVICE] 🔌 ${action}`, details);
-};
-
 class WebSocketService {
     constructor() {
         this.client = null;
@@ -13,62 +9,53 @@ class WebSocketService {
     }
 
     /**
-     * Conecta ao WebSocket e inscreve em um tópico de sala
-     * @param {string} roomId - ID da sala
-     * @param {function} onScoreUpdate - Callback quando receber atualização de score
+     * Conecta ao endpoint WebSocket
      * @returns {Promise<void>}
      */
-    connect(roomId, onScoreUpdate) {
+    connect() {
         return new Promise((resolve, reject) => {
-            // Se já está conectado, apenas inscreve no tópico
             if (this.connected && this.client) {
-                this.subscribeToRoom(roomId, onScoreUpdate);
+                console.log('[WEBSOCKET] 🔌 Já conectado.');
                 resolve();
                 return;
             }
 
-            logAction('Iniciando conexão WebSocket', { roomId });
+            console.log('[WEBSOCKET] 🔌 Iniciando conexão...');
 
             this.client = new Client({
-                webSocketFactory: () => 
+                webSocketFactory: () =>
                     new SockJS('http://localhost:8080/establish-websockets-connection'),
-                
+
+                // Logs de debug do STOMP (opcional)
                 debug: (str) => {
-                    console.debug('[STOMP]', str);
+                    // console.debug('[STOMP]', str);
                 },
-                
+
                 onConnect: () => {
-                    logAction('✅ WebSocket conectado com sucesso!');
+                    console.log('[WEBSOCKET] ✅ Conectado com sucesso!');
                     this.connected = true;
-                    
-                    // Inscreve no tópico da sala
-                    this.subscribeToRoom(roomId, onScoreUpdate);
-                    
                     resolve();
                 },
-                
+
                 onStompError: (frame) => {
-                    console.error('[WEBSOCKET SERVICE] ❌ Erro STOMP:', frame);
+                    console.error('[WEBSOCKET] ❌ Erro STOMP:', frame.headers['message'], frame);
                     this.connected = false;
                     reject(new Error(`Erro STOMP: ${frame.headers.message}`));
                 },
-                
+
                 onWebSocketError: (error) => {
-                    console.error('[WEBSOCKET SERVICE] ❌ Erro WebSocket:', error);
+                    console.error('[WEBSOCKET] ❌ Erro WebSocket:', error);
                     this.connected = false;
                     reject(error);
                 },
 
                 onDisconnect: () => {
-                    logAction('Desconectado do WebSocket');
+                    console.log('[WEBSOCKET] 🔌 Desconectado.');
                     this.connected = false;
                     this.subscriptions.clear();
                 },
 
-                // Configurações de reconexão automática
                 reconnectDelay: 5000,
-                heartbeatIncoming: 4000,
-                heartbeatOutgoing: 4000,
             });
 
             this.client.activate();
@@ -76,92 +63,17 @@ class WebSocketService {
     }
 
     /**
-     * Inscreve em um tópico de sala específico
-     * @param {string} roomId - ID da sala
-     * @param {function} onScoreUpdate - Callback para processar mensagens
-     */
-    subscribeToRoom(roomId, onScoreUpdate) {
-        if (!this.client || !this.connected) {
-            console.error('[WEBSOCKET SERVICE] ❌ Cliente não conectado');
-            return;
-        }
-
-        // Evita inscrições duplicadas
-        if (this.subscriptions.has(roomId)) {
-            logAction('⚠️ Já inscrito na sala', { roomId });
-            return;
-        }
-
-        const destination = `/topic/rooms/${roomId}/update-score`;
-        
-        const subscription = this.client.subscribe(destination, (message) => {
-            try {
-                const data = JSON.parse(message.body);
-                logAction('📨 Mensagem recebida', { roomId, data });
-                onScoreUpdate(data);
-            } catch (error) {
-                console.error('[WEBSOCKET SERVICE] ❌ Erro ao processar mensagem:', error);
-            }
-        });
-
-        this.subscriptions.set(roomId, subscription);
-        logAction('✅ Inscrito no tópico da sala', { roomId, destination });
-    }
-
-    /**
-     * Envia a pontuação de um jogador para broadcast
-     * @param {string} roomId - ID da sala
-     * @param {string} scoreId - ID do score do jogador
-     * @param {number} pointsEarned - Pontos ganhos
-     */
-    sendScore(roomId, scoreId, pointsEarned) {
-        if (!this.client || !this.connected) {
-            console.error('[WEBSOCKET SERVICE] ❌ WebSocket não está conectado');
-            return;
-        }
-
-        const destination = `/quizAI/sendPlayerScoreboard/${roomId}`;
-        const payload = {
-            scoreId,
-            pointsEarned,
-        };
-
-        logAction('📤 Enviando pontuação', { roomId, payload });
-
-        this.client.publish({
-            destination,
-            body: JSON.stringify(payload),
-        });
-    }
-
-    /**
-     * Cancela inscrição de uma sala específica
-     * @param {string} roomId - ID da sala
-     */
-    unsubscribeFromRoom(roomId) {
-        const subscription = this.subscriptions.get(roomId);
-        
-        if (subscription) {
-            subscription.unsubscribe();
-            this.subscriptions.delete(roomId);
-            logAction('✅ Desinscrição da sala concluída', { roomId });
-        }
-    }
-
-    /**
      * Desconecta completamente do WebSocket
      */
     disconnect() {
         if (this.client) {
-            // Cancela todas as inscrições
-            this.subscriptions.forEach((subscription) => subscription.unsubscribe());
+            console.log('[WEBSOCKET] 🔴 Desconectando...');
+            // Cancela todas as inscrições antes de desativar
+            this.subscriptions.forEach((sub) => sub.unsubscribe());
             this.subscriptions.clear();
-            
-            // Desativa o cliente
+
             this.client.deactivate();
             this.connected = false;
-            
-            logAction('🔴 WebSocket desconectado completamente');
         }
     }
 
@@ -172,7 +84,164 @@ class WebSocketService {
     isConnected() {
         return this.connected;
     }
+
+    // --------------------------------
+    // --- MÉTODOS DE ENVIO (SEND) ---
+    // --------------------------------
+
+    /** Envia evento de entrada na sala */
+    sendPlayerJoin(roomId, scoreId) {
+        const destination = `/quizAI/sendPlayerJoin/${roomId}`;
+        const payload = { scoreId };
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível enviar para ${destination}`);
+            return;
+        }
+
+        try {
+            this.client.publish({
+                destination,
+                body: JSON.stringify(payload),
+            });
+            console.log(`[WEBSOCKET] 📤 Mensagem enviada para ${destination}`, payload);
+        } catch (error) {
+            console.error(`[WEBSOCKET] ❌ Erro ao enviar para ${destination}:`, error);
+        }
+    }
+
+    /** Envia evento de saída da sala */
+    sendPlayerLeft(roomId, scoreId) {
+        const destination = `/quizAI/sendPlayerLeft/${roomId}`;
+        const payload = { scoreId };
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível enviar para ${destination}`);
+            return;
+        }
+
+        try {
+            this.client.publish({
+                destination,
+                body: JSON.stringify(payload),
+            });
+            console.log(`[WEBSOCKET] 📤 Mensagem enviada para ${destination}`, payload);
+        } catch (error) {
+            console.error(`[WEBSOCKET] ❌ Erro ao enviar para ${destination}:`, error);
+        }
+    }
+
+    /** Envia atualização de pontuação */
+    sendPlayerScore(roomId, scoreId, pointsEarned) {
+        const destination = `/quizAI/sendPlayerScore/${roomId}`;
+        const payload = { scoreId, pointsEarned };
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível enviar para ${destination}`);
+            return;
+        }
+
+        try {
+            this.client.publish({
+                destination,
+                body: JSON.stringify(payload),
+            });
+            console.log(`[WEBSOCKET] 📤 Mensagem enviada para ${destination}`, payload);
+        } catch (error) {
+            console.error(`[WEBSOCKET] ❌ Erro ao enviar para ${destination}:`, error);
+        }
+    }
+
+    // -------------------------------------
+    // --- MÉTODOS DE ESCUTA (SUBSCRIBE) ---
+    // -------------------------------------
+
+    /** Inscreve para receber atualizações de entrada de jogadores */
+    subscribeToPlayerJoins(roomId, onPlayerJoin) {
+        const subscriptionKey = `join-${roomId}`;
+        const destination = `/topic/rooms/${roomId}/join`;
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+            return;
+        }
+
+        if (this.subscriptions.has(subscriptionKey)) {
+            console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+            return;
+        }
+
+        const subscription = this.client.subscribe(destination, (message) => {
+            try {
+                const data = JSON.parse(message.body);
+                console.log(`[WEBSOCKET] 📨 Mensagem recebida de ${destination}`, data);
+                onPlayerJoin(data);
+            } catch (error) {
+                console.error(`[WEBSOCKET] ❌ Erro ao processar mensagem de ${destination}:`, error);
+            }
+        });
+
+        this.subscriptions.set(subscriptionKey, subscription);
+        console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+    }
+
+    /** Inscreve para receber atualizações de saída de jogadores */
+    subscribeToPlayerExits(roomId, onPlayerExit) {
+        const subscriptionKey = `exit-${roomId}`;
+        const destination = `/topic/rooms/${roomId}/exit`;
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+            return;
+        }
+
+        if (this.subscriptions.has(subscriptionKey)) {
+            console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+            return;
+        }
+
+        const subscription = this.client.subscribe(destination, (message) => {
+            try {
+                const data = JSON.parse(message.body);
+                console.log(`[WEBSOCKET] 📨 Mensagem recebida de ${destination}`, data);
+                onPlayerExit(data);
+            } catch (error) {
+                console.error(`[WEBSOCKET] ❌ Erro ao processar mensagem de ${destination}:`, error);
+            }
+        });
+
+        this.subscriptions.set(subscriptionKey, subscription);
+        console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+    }
+
+    /** Inscreve para receber atualizações de pontuação */
+    subscribeToScoreUpdates(roomId, onScoreUpdate) {
+        const subscriptionKey = `score-${roomId}`;
+        const destination = `/topic/rooms/${roomId}/update-score`;
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+            return;
+        }
+
+        if (this.subscriptions.has(subscriptionKey)) {
+            console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+            return;
+        }
+
+        const subscription = this.client.subscribe(destination, (message) => {
+            try {
+                const data = JSON.parse(message.body);
+                console.log(`[WEBSOCKET] 📨 Mensagem recebida de ${destination}`, data);
+                onScoreUpdate(data);
+            } catch (error) {
+                console.error(`[WEBSOCKET] ❌ Erro ao processar mensagem de ${destination}:`, error);
+            }
+        });
+
+        this.subscriptions.set(subscriptionKey, subscription);
+        console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+    }
 }
 
-// Exporta uma instância singleton
 export default new WebSocketService();
