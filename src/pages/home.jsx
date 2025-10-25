@@ -2,8 +2,7 @@
 
 import Navbar from "../components/navbar";
 import ConnectionHub from "../components/connectionHub";
-import Section from "../components/section";
-import { novosQuizzes, popularesQuizzes } from "../data/mockData";
+
 
 function Home() {
   return (
@@ -16,11 +15,11 @@ function Home() {
       md:w-[1140px] md:mt-0 md:pt-[80px] md:rounded-none ">
         <ConnectionHub />
 
-        {/* Seção de Novos Quizzes */}
-        <Section textSection="Novos" quizzes={novosQuizzes} />
+        <h1>
+          working in progress...
+        </h1>
 
-        {/* Seção de Quizzes Populares */}
-        <Section textSection="Populares" quizzes={popularesQuizzes} />
+
       </main>
     </div>
   );
