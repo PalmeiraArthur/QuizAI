@@ -1,12 +1,14 @@
 
+//src\pages\findRooms.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 import toast, { Toaster } from 'react-hot-toast';
+import webSocketService from '../services/websocketService';
 
 
-function Rooms() {
+function FindRooms() {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,87 @@ function Rooms() {
     } catch (err) {
       console.error('Erro ao carregar salas:', err);
       setError('Erro ao carregar salas públicas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoinRoom = async (roomCode, roomId) => {
+    const userId = localStorage.getItem('userId');
+    setLoading(true);
+
+    if (!userId) {
+      toast.error('Usuário não logado.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Chamar a API para entrar na sala
+      const joinResponse = await roomService.joinRoom(roomCode, userId);
+
+      // 2. LOG DE DEBUG - Ver estrutura da resposta
+      console.log('📦 Resposta completa do backend:', joinResponse);
+      console.log('📦 joinResponse.scoreboard:', joinResponse.scoreboard);
+
+      // 3. Extrair o scoreId do novo jogador
+      const guestScore = joinResponse.scoreboard;
+
+      // Validação: Verificar se guestScore existe
+      if (!guestScore) {
+        throw new Error("Resposta da API incompleta: scoreboard não encontrado.");
+      }
+
+      const guestScoreId = guestScore.id;
+
+      // Validação: Verificar se guestScoreId existe
+      if (!guestScoreId) {
+        throw new Error("Resposta da API incompleta: ID do placar não encontrado.");
+      }
+
+      console.log('✅ Score do jogador:', guestScore);
+      console.log('✅ Score ID extraído:', guestScoreId);
+
+      // 4. Montar objeto da sala
+      const roomDataToStore = {
+        id: joinResponse.roomId,
+        roomCode: joinResponse.roomCode,
+        isPublic: joinResponse.isPublic,
+        maxNumberOfPlayers: joinResponse.maxNumberOfPlayers,
+        owner: joinResponse.owner,
+        scoreboard: [
+          guestScore, // Você (novo jogador)
+          ...joinResponse.playersScores // Jogadores que já estavam
+        ],
+      };
+
+      console.log('💾 Dados da sala para armazenar:', roomDataToStore);
+
+      // 5. Salvar no localStorage
+      localStorage.setItem('currentRoomId', roomDataToStore.id);
+      localStorage.setItem(`room_${roomDataToStore.id}`, JSON.stringify(roomDataToStore));
+
+      // 6. ENVIAR EVENTO WEBSOCKET
+      console.log('🔌 Conectando ao WebSocket...');
+      await webSocketService.connect();
+
+      console.log('📤 Enviando evento de join...', {
+        roomId: roomDataToStore.id,
+        scoreId: guestScoreId
+      });
+      webSocketService.sendPlayerJoin(roomDataToStore.id, guestScoreId);
+
+      // 7. Redirecionar
+      navigate(`/sala/${roomDataToStore.id}`);
+      toast.success(`Você entrou na sala ${roomCode}!`);
+
+    } catch (err) {
+      console.error('❌ Erro ao entrar na sala:', err);
+      console.error('❌ Stack trace:', err.stack);
+
+      const errorMessage = err.response?.data?.detail || err.message || 'Não foi possível entrar na sala.';
+      toast.error(errorMessage);
+
     } finally {
       setLoading(false);
     }
@@ -182,10 +265,7 @@ function Rooms() {
                     </button>
 
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(room.roomCode);
-                        toast.success('Código copiado!');
-                      }}
+                      onClick={() => handleJoinRoom(room.roomCode, room.id)}
                       className="flex gap-2 px-4 py-2 bg-pistachio text-white font-semibold rounded-lg transition-colors text-sm"
                     >
                       <img src="src\assets\sounds\iconsButtons\joinIcon.svg" width="20" />
@@ -207,4 +287,4 @@ function Rooms() {
   );
 }
 
-export default Rooms;
+export default FindRooms;

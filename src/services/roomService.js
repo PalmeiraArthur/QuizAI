@@ -1,3 +1,4 @@
+//roomService.js
 import api from './api';
 
 const roomService = {
@@ -6,7 +7,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic,
-            maxNumberOfPlayersInRoom: maxNumberOfPlayers,
+            maxNumberOfPlayers: maxNumberOfPlayers,
         };
 
         try {

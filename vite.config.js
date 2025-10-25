@@ -7,4 +7,8 @@ export default defineConfig({
   plugins: [
     react(),tailwindcss(),
   ],
+  define: {
+    // Substitui todas as ocorrências de 'global' por 'window'
+    global: 'window', 
+  },
 })
