@@ -1,11 +1,13 @@
+//src/services/websocketService.js
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
-class WebSocketService {
+class WebsocketService {
     constructor() {
         this.client = null;
         this.connected = false;
-        this.subscriptions = new Map(); // Armazena as inscrições ativas
+        this.subscriptions = new Map();
+        this.connectionPromise = null; // ✅ ADICIONAR
     }
 
     /**
@@ -13,20 +15,25 @@ class WebSocketService {
      * @returns {Promise<void>}
      */
     connect() {
-        return new Promise((resolve, reject) => {
-            if (this.connected && this.client) {
-                console.log('[WEBSOCKET] 🔌 Já conectado.');
-                resolve();
-                return;
-            }
+        // ✅ Se já existe uma promessa de conexão, retornar ela
+        if (this.connectionPromise) {
+            console.log('[WEBSOCKET] 🔌 Conexão em andamento, aguardando...');
+            return this.connectionPromise;
+        }
 
-            console.log('[WEBSOCKET] 🔌 Iniciando conexão...');
+        if (this.connected && this.client?.connected) {
+            console.log('[WEBSOCKET] 🔌 Já conectado.');
+            return Promise.resolve();
+        }
 
+        console.log('[WEBSOCKET] 🔌 Iniciando conexão...');
+
+        // ✅ Criar e armazenar a promessa de conexão
+        this.connectionPromise = new Promise((resolve, reject) => {
             this.client = new Client({
                 webSocketFactory: () =>
                     new SockJS('http://localhost:8080/establish-websockets-connection'),
 
-                // Logs de debug do STOMP (opcional)
                 debug: (str) => {
                     // console.debug('[STOMP]', str);
                 },
@@ -34,18 +41,21 @@ class WebSocketService {
                 onConnect: () => {
                     console.log('[WEBSOCKET] ✅ Conectado com sucesso!');
                     this.connected = true;
+                    this.connectionPromise = null; // ✅ Limpar a promessa
                     resolve();
                 },
 
                 onStompError: (frame) => {
                     console.error('[WEBSOCKET] ❌ Erro STOMP:', frame.headers['message'], frame);
                     this.connected = false;
+                    this.connectionPromise = null; // ✅ Limpar a promessa
                     reject(new Error(`Erro STOMP: ${frame.headers.message}`));
                 },
 
                 onWebSocketError: (error) => {
                     console.error('[WEBSOCKET] ❌ Erro WebSocket:', error);
                     this.connected = false;
+                    this.connectionPromise = null; // ✅ Limpar a promessa
                     reject(error);
                 },
 
@@ -53,6 +63,7 @@ class WebSocketService {
                     console.log('[WEBSOCKET] 🔌 Desconectado.');
                     this.connected = false;
                     this.subscriptions.clear();
+                    this.connectionPromise = null; // ✅ Limpar a promessa
                 },
 
                 reconnectDelay: 5000,
@@ -60,36 +71,29 @@ class WebSocketService {
 
             this.client.activate();
         });
+
+        return this.connectionPromise;
     }
 
-    /**
-     * Desconecta completamente do WebSocket
-     */
     disconnect() {
         if (this.client) {
             console.log('[WEBSOCKET] 🔴 Desconectando...');
-            // Cancela todas as inscrições antes de desativar
             this.subscriptions.forEach((sub) => sub.unsubscribe());
             this.subscriptions.clear();
-
             this.client.deactivate();
             this.connected = false;
+            this.connectionPromise = null; // ✅ Limpar a promessa
         }
     }
 
-    /**
-     * Verifica se está conectado
-     * @returns {boolean}
-     */
     isConnected() {
-        return this.connected;
+        return this.connected && this.client?.connected;
     }
 
     // --------------------------------
     // --- MÉTODOS DE ENVIO (SEND) ---
     // --------------------------------
 
-    /** Envia evento de entrada na sala */
     sendPlayerJoin(roomId, scoreId) {
         const destination = `/quizAI/sendPlayerJoin/${roomId}`;
         const payload = { scoreId };
@@ -110,7 +114,6 @@ class WebSocketService {
         }
     }
 
-    /** Envia evento de saída da sala */
     sendPlayerLeft(roomId, scoreId) {
         const destination = `/quizAI/sendPlayerLeft/${roomId}`;
         const payload = { scoreId };
@@ -131,7 +134,6 @@ class WebSocketService {
         }
     }
 
-    /** Envia atualização de pontuação */
     sendPlayerScore(roomId, scoreId, pointsEarned) {
         const destination = `/quizAI/sendPlayerScore/${roomId}`;
         const payload = { scoreId, pointsEarned };
@@ -156,13 +158,13 @@ class WebSocketService {
     // --- MÉTODOS DE ESCUTA (SUBSCRIBE) ---
     // -------------------------------------
 
-    /** Inscreve para receber atualizações de entrada de jogadores */
     subscribeToPlayerJoins(roomId, onPlayerJoin) {
         const subscriptionKey = `join-${roomId}`;
         const destination = `/topic/rooms/${roomId}/join`;
 
-        if (!this.client || !this.connected) {
-            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+        // ✅ Verificação mais rigorosa
+        if (!this.client || !this.client.connected) {
+            console.error(`[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`);
             return;
         }
 
@@ -185,13 +187,13 @@ class WebSocketService {
         console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
     }
 
-    /** Inscreve para receber atualizações de saída de jogadores */
     subscribeToPlayerExits(roomId, onPlayerExit) {
         const subscriptionKey = `exit-${roomId}`;
         const destination = `/topic/rooms/${roomId}/exit`;
 
-        if (!this.client || !this.connected) {
-            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+        // ✅ Verificação mais rigorosa
+        if (!this.client || !this.client.connected) {
+            console.error(`[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`);
             return;
         }
 
@@ -214,13 +216,13 @@ class WebSocketService {
         console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
     }
 
-    /** Inscreve para receber atualizações de pontuação */
     subscribeToScoreUpdates(roomId, onScoreUpdate) {
         const subscriptionKey = `score-${roomId}`;
         const destination = `/topic/rooms/${roomId}/update-score`;
 
-        if (!this.client || !this.connected) {
-            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível inscrever em ${destination}`);
+        // ✅ Verificação mais rigorosa
+        if (!this.client || !this.client.connected) {
+            console.error(`[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`);
             return;
         }
 
@@ -242,6 +244,23 @@ class WebSocketService {
         this.subscriptions.set(subscriptionKey, subscription);
         console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
     }
+
+    cleanupSubscriptions(roomId) {
+        const joinKey = `join-${roomId}`;
+        const exitKey = `exit-${roomId}`;
+
+        if (this.subscriptions.has(joinKey)) {
+            this.subscriptions.get(joinKey).unsubscribe();
+            this.subscriptions.delete(joinKey);
+            console.log(`[WEBSOCKET] 🗑️ Inscrição cancelada para /topic/rooms/${roomId}/join`);
+        }
+        
+        if (this.subscriptions.has(exitKey)) {
+            this.subscriptions.get(exitKey).unsubscribe();
+            this.subscriptions.delete(exitKey);
+            console.log(`[WEBSOCKET] 🗑️ Inscrição cancelada para /topic/rooms/${roomId}/exit`);
+        }
+    }
 }
 
-export default new WebSocketService();
+export default new WebsocketService();

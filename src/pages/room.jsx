@@ -2,48 +2,80 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import roomService from '../services/roomService';
+import webSocketService from '../services/websocketService';
 
 function Room() {
   const navigate = useNavigate();
-  const { roomId } = useParams(); // Pegar o ID da sala pela URL
+  const { roomId } = useParams();
 
-  // Estado da sala
   const [room, setRoom] = useState(null);
   const [isPublic, setIsPublic] = useState(true);
   const [maxPlayers, setMaxPlayers] = useState(10);
   const [loading, setLoading] = useState(false);
   const [quiz, setQuiz] = useState(null);
-
+  const [currentScoreboard, setCurrentScoreboard] = useState([]);
 
   const userId = localStorage.getItem('userId');
 
-  // Carregar dados da sala quando a página carrega
   useEffect(() => {
-    if (roomId) {
-      loadRoomData();
-    }
-  }, [roomId]);
+    if (!roomId) return;
 
-  const loadRoomData = () => {
     const savedRoom = localStorage.getItem(`room_${roomId}`);
     if (savedRoom) {
       const roomData = JSON.parse(savedRoom);
       setRoom(roomData);
       setIsPublic(roomData.isPublic);
-      setMaxPlayers(roomData.maxNumberOfPlayers);
+      setMaxPlayers(parseInt(roomData.maxNumberOfPlayers) || 10);
+      setCurrentScoreboard(roomData.scoreboard || []);
+    } else {
+      console.error(`Dados da sala ${roomId} não encontrados no localStorage.`);
     }
-  };
 
-  // Atualizar configurações da sala
+
+    // ✅ CRÍTICO: Conectar e inscrever nos eventos WebSocket
+    if (roomId) {
+      console.log('[SETUP] 🔌 Conectando ao WebSocket...');
+
+      webSocketService.connect().then(() => {
+        console.log('[SETUP] ✅ WebSocket conectado');
+
+        console.log('[SETUP] 📡 Inscrevendo em JOIN...');
+        webSocketService.subscribeToPlayerJoins(roomId, handlePlayerJoin);
+
+        console.log('[SETUP] 📡 Inscrevendo em EXIT...');
+        webSocketService.subscribeToPlayerExits(roomId, handlePlayerExit);
+
+        console.log('[SETUP] ✅ Inscrições completas');
+      }).catch(err => {
+        console.error("[SETUP] ❌ Falha ao conectar ou inscrever no WS:", err);
+      });
+    }
+
+    return () => {
+      webSocketService.cleanupSubscriptions(roomId);
+    };
+  }, [roomId]);
+
+  // ✅ MOVIDO PARA CÁ - Só será executado quando room existir
+  const isHost = room ? String(userId) === String(room.owner?.id) : false;
+
+  // Atualizar configurações da sala (SOMENTE HOST)
   const handleUpdateRoomSettings = async () => {
+    if (!isHost || !room) return;
 
-    await roomService.updateRoom(room.id, {ownerId: userId, isPublic, maxNumberOfPlayers: maxPlayers, quizId: quiz?.id || null});
+    await roomService.updateRoom(room.id, {
+      ownerId: userId,
+      isPublic,
+      maxNumberOfPlayers: maxPlayers,
+      quizId: quiz?.id || null
+    });
 
     const updatedRoom = {
       ...room,
       isPublic,
       maxNumberOfPlayers: maxPlayers,
-      quizId: quiz?.id
+      quizId: quiz?.id,
+      scoreboard: currentScoreboard
     };
     setRoom(updatedRoom);
     localStorage.setItem(`room_${room.id}`, JSON.stringify(updatedRoom));
@@ -51,19 +83,111 @@ function Room() {
 
   // Sair do lobby
   const handleLeaveLobby = async () => {
-  
-      // Deletar a sala do backend
+    if (!room) return;
+
+    if (isHost) {
+      // Host deleta a sala
       await roomService.deleteRoom(room.id, userId);
 
-      // Limpar localStorage
-      localStorage.removeItem('currentRoomId');
-      localStorage.removeItem(`room_${room.id}`);
+    } else {
+      // Player normal sai da sala
+      const myScore = currentScoreboard.find(score =>
+        String(score.player?.id) === String(userId)
+      );
 
-      navigate('/');
+      if (myScore) {
+        console.log('🚪 [LEAVE] 1️⃣ Enviando WS sendPlayerLeft PRIMEIRO...');
+        webSocketService.sendPlayerLeft(room.id, myScore.id); // ✅ ANTES
 
+        // ✅ Aguardar um pouco para garantir que o WS foi processado
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log('🚪 [LEAVE] 2️⃣ Agora chamando exitRoom...');
+        await roomService.exitRoom(myScore.id); // ✅ DEPOIS
+      }
+    }
+
+    // Limpar localStorage
+    localStorage.removeItem('currentRoomId');
+    localStorage.removeItem(`room_${room.id}`);
+
+    navigate('/');
   };
 
-  // Se não tem sala carregada, mostrar loading
+  const handlePlayerJoin = (joinPayload) => {
+    console.log('[JOIN WS] 📨 Payload recebido:', joinPayload);
+
+    setCurrentScoreboard(prevScores => {
+      console.log('[JOIN WS] 📨 Payload completo recebido:', joinPayload);
+      console.log('[JOIN WS] 📨 Tipo do payload:', typeof joinPayload);
+      console.log('[JOIN WS] 📨 joinPayload.id:', joinPayload.id);
+      console.log('[JOIN WS] 📨 joinPayload.player:', joinPayload.player);
+      const normalizedPayload = {
+        id: joinPayload.scoreId || joinPayload.id, // Aceitar ambos os formatos
+        score: joinPayload.score || 0,
+        player: joinPayload.player
+      };
+
+      console.log('[JOIN WS] 📦 Payload normalizado:', normalizedPayload);
+
+      const isAlreadyPresent = prevScores.some(score => score.id === normalizedPayload.id);
+
+      if (!isAlreadyPresent) {
+        console.log(`[JOIN WS] ✅ Adicionando jogador: ${normalizedPayload.player?.username}`);
+
+        const updatedScoreboard = [...prevScores, normalizedPayload];
+
+        const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
+        if (roomData) {
+          roomData.scoreboard = updatedScoreboard;
+          localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
+          console.log('💾 localStorage atualizado com novo jogador');
+        }
+
+        return updatedScoreboard;
+      }
+
+      console.log('[JOIN WS] ⚠️ Jogador já presente, não adicionado');
+      return prevScores;
+    });
+  };
+
+  const handlePlayerExit = (exitPayload) => {
+    console.log('[EXIT WS] 📨 ============ EVENTO DE SAÍDA RECEBIDO ============');
+    console.log('[EXIT WS] 📨 Payload completo:', exitPayload);
+    console.log('[EXIT WS] 📨 scoreId:', exitPayload.scoreId);
+    console.log('[EXIT WS] 📨 player:', exitPayload.player);
+
+    setCurrentScoreboard(prevScores => {
+      console.log('[EXIT WS] 📊 Scoreboard ANTES da remoção:', prevScores);
+
+      const scoreIdToRemove = exitPayload.scoreId || exitPayload.id;
+      console.log('[EXIT WS] 🎯 ID a ser removido:', scoreIdToRemove);
+
+      const updatedScoreboard = prevScores.filter(score => {
+        const keep = score.id !== scoreIdToRemove;
+        console.log(`[EXIT WS] Score ${score.id} === ${scoreIdToRemove}? ${!keep} (${keep ? 'MANTER' : 'REMOVER'})`);
+        return keep;
+      });
+
+      console.log(`[EXIT WS] 👋 Jogador removido: ${exitPayload.player?.username}`);
+      console.log('[EXIT WS] 📊 Scoreboard DEPOIS da remoção:', updatedScoreboard);
+      console.log('[EXIT WS] 📊 Quantidade: ', prevScores.length, '→', updatedScoreboard.length);
+
+      // Atualizar localStorage
+      const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
+      if (roomData) {
+        roomData.scoreboard = updatedScoreboard;
+        localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
+        console.log('💾 localStorage atualizado - jogador removido');
+      }
+
+      console.log('[EXIT WS] ✅ ============ FIM DO EVENTO DE SAÍDA ============');
+      return updatedScoreboard;
+    });
+  };
+
+  // ✅ VERIFICAÇÃO: Se room não existe, mostrar loading
   if (!room) {
     return (
       <div className="min-h-screen bg-darkGunmetal flex items-center justify-center w-full">
@@ -72,6 +196,16 @@ function Room() {
     );
   }
 
+  // ✅ AGORA room existe, podemos acessar room.owner com segurança
+  const roomOwnerId = room.owner?.id;
+
+  console.log('--- DEBUG ROOM ---');
+  console.log('ID do Usuário Logado (userId):', userId);
+  console.log('ID do Dono da Sala (roomOwnerId):', roomOwnerId);
+  console.log('É o Host?:', isHost);
+  console.log('Scoreboard Atual:', currentScoreboard);
+  console.log('------------------');
+
   return (
     <div className="min-h-screen bg-raisinBlack flex justify-center w-[1140px]">
       <main className="container textce mx-auto px-4 py-8">
@@ -79,40 +213,61 @@ function Room() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white mb-2">Lobby</h1>
-          <p className="text-gray-400 text-lg">Configure sua sala e escolha o quiz</p>
+          <p className="text-gray-400 text-lg">
+            {isHost ? 'Configure sua sala e escolha o quiz' : 'Aguardando o host iniciar o quiz'}
+          </p>
         </div>
 
         {/* Main Content */}
         <div className="flex flex-row gap-6 justify-center ">
 
           {/* Coluna Esquerda - Players */}
-          <div className=" rounded-md w-[211px] ">
+          <div className="rounded-md w-[211px]">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-2xl font-bold text-white">Jogadores</h2>
               <div className="bg-pistachio text-raisinBlack px-4 py-2 rounded-md font-bold text-lg">
-                1/{maxPlayers}
+                {currentScoreboard.length}/{maxPlayers}
               </div>
             </div>
 
             {/* Lista de jogadores */}
-            <div className="bg-darkGunmetal space-y-3  rounded-md p-1 ">
-              <div className="bg-plumpPurple rounded-lg p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-pistachio rounded-full flex items-center justify-center text-raisinBlack font-bold text-xl">
-                  👑
-                </div>
-                <div>
-                  <p className="text-white font-semibold">Você</p>
-                  <p className="text-gray-300 text-sm">Host</p>
-                </div>
-              </div>
+            <div className="bg-darkGunmetal space-y-3 rounded-md p-1">
+              {currentScoreboard.map((playerScore, i) => {
+                const scoreId = playerScore.id;
+                const playerId = playerScore.player?.id;
+                const isPlayerHost = String(playerId) === String(roomOwnerId);
+                const isYou = String(playerId) === String(userId);
+
+                return (
+                  <div
+                    key={scoreId}
+                    className={`${isYou ? 'bg-plumpPurple' : 'bg-darkGunmetal/80'} rounded-lg p-4 flex items-center gap-3 border border-plumpPurple/20`}
+                  >
+                    <div className="w-10 h-10 bg-pistachio rounded-full flex items-center justify-center text-raisinBlack font-bold text-xl">
+                      {isPlayerHost ? '👑' : '👤'}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold">
+                        {isYou ? 'Você' : playerScore.player?.username || `Jogador ${i + 1}`}
+                      </p>
+                      {isPlayerHost && <p className="text-gray-300 text-sm">Host</p>}
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Players vazios */}
-              {[...Array(Math.min(maxPlayers - 1, 19))].map((_, i) => (
-                <div key={i} className="bg-darkGunmetal rounded-lg p-4 flex items-center gap-3 opacity-50 border border-plumpPurple/20">
-                  <div className="w-10 h-10 bg-gray-700 rounded-full"></div>
-                  <p className="text-gray-500">Aguardando jogador...</p>
-                </div>
-              ))}
+              {Array(Math.max(0, maxPlayers - currentScoreboard.length))
+                .fill(null)
+                .map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-darkGunmetal rounded-lg p-4 flex items-center gap-3 opacity-50 border border-plumpPurple/20"
+                  >
+                    <div className="w-10 h-10 bg-gray-700 rounded-full"></div>
+                    <p className="text-gray-500">Aguardando jogador...</p>
+                  </div>
+                ))}
             </div>
           </div>
 
@@ -120,47 +275,64 @@ function Room() {
           <div className="flex flex-col gap-6 w-[800px]">
 
             {/* Configurações da Sala */}
-            <div className="bg-darkGunmetal rounded-md px-12 py-4 flex flex-col gap-4 ">
+            <div className="bg-darkGunmetal rounded-md px-12 py-4 flex flex-col gap-4">
 
               <div className='flex justify-center gap-2 h-[120px]'>
+
                 {/* Sala pública */}
                 <div className="flex flex-col items-center justify-between bg-darkGunmetal p-5 rounded-md border border-plumpPurple/20">
                   <div>
                     <label className="text-white font-semibold text-lg">Sala pública:</label>
-                    <p className="text-gray-400 text-sm mt-1">
-
-                    </p>
                   </div>
-                  <button
-                    onClick={() => setIsPublic(!isPublic)}
-                    disabled={loading}
-                    className={`relative w-16 h-8 rounded-full transition-colors ${isPublic ? 'bg-pistachio' : 'bg-gray-600'
-                      }`}
-                  >
-                    <div
-                      className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${isPublic ? 'translate-x-8' : ''
+
+                  {/* ✅ HOST: Toggle editável | PLAYER: Badge de status */}
+                  {isHost ? (
+                    <button
+                      onClick={() => setIsPublic(!isPublic)}
+                      disabled={loading}
+                      className={`relative w-16 h-8 rounded-full transition-colors ${isPublic ? 'bg-pistachio' : 'bg-gray-600'
                         }`}
-                    />
-                  </button>
+                    >
+                      <div
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${isPublic ? 'translate-x-8' : ''
+                          }`}
+                      />
+                    </button>
+                  ) : (
+                    <div className={`px-4 py-2 rounded-md font-semibold ${isPublic ? 'bg-emerald-950 text-pistachio' : 'bg-gray-700 text-gray-300'
+                      }`}>
+                      {isPublic ? 'PÚBLICA' : 'PRIVADA'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Máximo de jogadores */}
-                <div className=" bg-darkGunmetal p-5 rounded-lg border border-plumpPurple/20">
+                <div className="bg-darkGunmetal p-5 rounded-lg border border-plumpPurple/20">
                   <label className="text-white font-semibold text-lg block mb-3 text-center">
                     Máximo de jogadores: <span className="text-pistachio text-2xl ml-2">{maxPlayers}</span>
                   </label>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min="2"
-                      max="10"
-                      value={maxPlayers}
-                      onChange={(e) => setMaxPlayers(parseInt(e.target.value))}
-                      disabled={loading}
-                      className="flex-1 h-2 bg-plumpPurple/30 rounded-lg appearance-none cursor-pointer accent-pistachio"
-                    />
 
-                  </div>
+                  {/* ✅ HOST: Slider editável | PLAYER: Apenas visualização */}
+                  {isHost ? (
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="range"
+                        min="2"
+                        max="10"
+                        value={maxPlayers}
+                        onChange={(e) => setMaxPlayers(parseInt(e.target.value))}
+                        disabled={loading}
+                        className="flex-1 h-2 bg-plumpPurple/30 rounded-lg appearance-none cursor-pointer accent-pistachio"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
+                      <div className="bg-plumpPurple/20 px-6 py-2 rounded-lg">
+                        <span className="text-white text-sm">Definido pelo host</span>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-gray-400 text-sm mt-2">
                     Entre 2 e 10 jogadores
                   </p>
@@ -173,20 +345,21 @@ function Room() {
                     <p className="text-pistachio text-4xl font-bold tracking-widest font-mono">
                       {room.roomCode}
                     </p>
-                   
                   </div>
                 </div>
 
               </div>
 
-              {/* Botão de salvar configurações */}
-              <button
-                onClick={handleUpdateRoomSettings}
-                disabled={loading}
-                className="w-full bg-plumpPurple text-white font-bold py-4 px-6 rounded-lg hover:bg-plumpPurple/80 disabled:opacity-50 transition text-lg"
-              >
-                Salvar Configurações
-              </button>
+              {/* ✅ Botão de salvar - SOMENTE para HOST */}
+              {isHost && (
+                <button
+                  onClick={handleUpdateRoomSettings}
+                  disabled={loading}
+                  className="w-full bg-plumpPurple text-white font-bold py-4 px-6 rounded-lg hover:bg-plumpPurple/80 disabled:opacity-50 transition text-lg"
+                >
+                  Salvar Configurações
+                </button>
+              )}
             </div>
 
             <div className="mt-6 flex gap-20 justify-center">
@@ -195,9 +368,8 @@ function Room() {
                 disabled={loading}
                 className="bg-silver text-white font-semibold text-[24px] py-3 px-8 rounded-lg hover:bg-white hover:text-silver disabled:opacity-50 transition"
               >
-                ← Sair do Lobby
+                {isHost ? '← Fechar Sala' : '← Sair do Lobby'}
               </button>
-
             </div>
           </div>
         </div>
