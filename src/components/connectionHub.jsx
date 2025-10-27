@@ -9,35 +9,43 @@ function ConnectionHub() {
     const [loading, setLoading] = useState(false);
 
     const handleCreateRoom = async () => {
+
+        //Pega o id do usuário no localStorage para definir como owner da sala
         const userId = localStorage.getItem('userId');
+        console.log("FRONTEND: pegando o id do usuário:", userId);
+
         setLoading(true);
 
         try {
             const newRoom = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
+            console.log("FRONTEND: Sala criada no Backend e resposta recebida. ");
 
-            // 1. EXTRAIR O SCORE ID DO HOST da resposta do backend
-            // Seu DTO retorna uma lista, então pegamos o ID do primeiro (e único) score.
-            const hostScoreId = newRoom.scoreboard[0].scoreId; 
-
-            // 2. Salvar no localStorage
+            //Salva no localStorage
             localStorage.setItem('currentRoomId', newRoom.id);
+            console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
+
             localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(newRoom));
+            console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
-            // 3. ENVIAR EVENTO WEBSOCKET (O Host avisa que entrou)
-            await webSocketService.connect(); // Garantir que a conexão WS está ativa
-            webSocketService.sendPlayerJoin(newRoom.id, hostScoreId);
+            //Se conecta no WebSocket
+            await webSocketService.connect(); 
+            console.log("FRONTEND: Se conectou com o websocket.");
 
-            // 4. Redirecionar
+            //Envia evento de Player Join (ainda não sabemos se é necessario)
+            webSocketService.sendPlayerJoin(newRoom.id);
+            console.log("FRONTEND: Evento Player Join enviado.");
+
+            //Redirecionar
             navigate(`/sala/${newRoom.id}`);
+            console.log("FRONTEND: Navegando para a sala criada.");
 
         } catch (error) {
-            console.error("Erro ao criar sala e enviar join:", error);
+            console.error("Erro ao criar sala.", error);
         } finally {
             setLoading(false);
         }
     };
-    // ...
-
+    
     return (
         <div className="flex justify-center items-center gap-2 bg-raisinBlack p-[20px] w-[359px] h-[75px] rounded-[50px] mt-[30px] font-semibold text-[22px]
         md:w-[617px] md:h-[100px]">

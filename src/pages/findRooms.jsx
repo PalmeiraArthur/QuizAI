@@ -24,10 +24,13 @@ function FindRooms() {
       setLoading(true);
       setError(null);
       const publicRooms = await roomService.getPublicRooms();
-      // Converter Set para Array se necessário
+      console.log('[FRONTEND]: Procurando salas públicas...');
+
+
       const roomsArray = Array.isArray(publicRooms) ? publicRooms : Array.from(publicRooms);
       setRooms(roomsArray);
       console.log('Salas públicas:', roomsArray);
+
     } catch (err) {
       console.error('Erro ao carregar salas:', err);
       setError('Erro ao carregar salas públicas');
@@ -47,17 +50,18 @@ function FindRooms() {
     }
 
     try {
-      // 1. Chamar a API para entrar na sala
       const joinResponse = await roomService.joinRoom(roomCode, userId);
+      
 
       // 2. LOG DE DEBUG - Ver estrutura da resposta
-      console.log('📦 Resposta completa do backend:', joinResponse);
-      console.log('📦 joinResponse.scoreboard:', joinResponse.scoreboard);
+      console.log('[FRONTEND]: Resposta completa do backend:', joinResponse);
+      console.log('[FRONTEND]: joinResponse.scoreboard:', joinResponse.scoreboard);
 
       // 3. Extrair o scoreId do novo jogador
       const guestScore = joinResponse.scoreboard;
+      console.log('[FRONTEND]: Score do jogador recebido:', guestScore);
 
-      // Validação: Verificar se guestScore existe
+
       if (!guestScore) {
         throw new Error("Resposta da API incompleta: scoreboard não encontrado.");
       }
@@ -69,8 +73,7 @@ function FindRooms() {
         throw new Error("Resposta da API incompleta: ID do placar não encontrado.");
       }
 
-      console.log('✅ Score do jogador:', guestScore);
-      console.log('✅ Score ID extraído:', guestScoreId);
+      console.log('[FRONTEND]: Score ID extraído:', guestScoreId);
 
       // 4. Montar objeto da sala
       const roomDataToStore = {
@@ -103,7 +106,7 @@ function FindRooms() {
 
       // 7. Redirecionar
       navigate(`/sala/${roomDataToStore.id}`);
-      toast.success(`Você entrou na sala ${roomCode}!`);
+      console.log('➡️ Navegando para a sala:', roomDataToStore.id);
 
     } catch (err) {
       console.error('❌ Erro ao entrar na sala:', err);
