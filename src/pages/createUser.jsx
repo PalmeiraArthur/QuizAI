@@ -31,9 +31,10 @@ const CreateUser = () => {
       localStorage.setItem('userId', user.id);
       localStorage.setItem('username', user.username);
 
-      console.log('Usuário criado:', user);
+      console.log('FRONTEND:Usuário criado:', user);
 
       navigate('/home');
+      console.log('FRONTEND: navegando para a home.', user);
 
     } catch (err) {
       console.error('Erro ao criar usuário:', err);

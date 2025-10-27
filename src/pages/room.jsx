@@ -1,5 +1,5 @@
 // src/pages/room.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import roomService from '../services/roomService';
 import webSocketService from '../services/websocketService';
@@ -16,47 +16,121 @@ function Room() {
   const [currentScoreboard, setCurrentScoreboard] = useState([]);
 
   const userId = localStorage.getItem('userId');
+  
+  const handlePlayerJoin = useCallback((joinPayload) => {
+    console.log('[JOIN WS] 📨 Payload recebido:', joinPayload);
+
+    setCurrentScoreboard(prevScores => {
+      console.log('[JOIN WS] 📨 Payload completo recebido:', joinPayload);
+      console.log('[JOIN WS] 📨 Tipo do payload:', typeof joinPayload);
+      console.log('[JOIN WS] 📨 joinPayload.id:', joinPayload.id);
+      console.log('[JOIN WS] 📨 joinPayload.player:', joinPayload.player);
+      const normalizedPayload = {
+        id: joinPayload.scoreId || joinPayload.id, // Aceitar ambos os formatos
+        score: joinPayload.score || 0,
+        player: joinPayload.player
+      };
+
+      console.log('[JOIN WS] 📦 Payload normalizado:', normalizedPayload);
+
+      const isAlreadyPresent = prevScores.some(score => score.id === normalizedPayload.id);
+
+      if (!isAlreadyPresent) {
+        console.log(`[JOIN WS]  ${normalizedPayload.player?.username}`);
+
+        const updatedScoreboard = [...prevScores, normalizedPayload];
+
+        const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
+        if (roomData) {
+          roomData.scoreboard = updatedScoreboard;
+          localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
+          console.log('💾 localStorage atualizado com novo jogador');
+        }
+
+        return updatedScoreboard;
+      }
+
+      console.log('[JOIN WS] ⚠️ Jogador já presente, não adicionado');
+      return prevScores;
+    });
+  }, [roomId])
+
+  const handlePlayerExit = useCallback((exitPayload) => {
+    console.log('[EXIT WS] 📨 ============ EVENTO DE SAÍDA RECEBIDO ============');
+    console.log('[EXIT WS] 📨 Payload completo:', exitPayload);
+    console.log('[EXIT WS] 📨 scoreId:', exitPayload.scoreId);
+    console.log('[EXIT WS] 📨 player:', exitPayload.player);
+
+    setCurrentScoreboard(prevScores => {
+      console.log('[EXIT WS] 📊 Scoreboard ANTES da remoção:', prevScores);
+
+      const scoreIdToRemove = exitPayload.scoreId || exitPayload.id;
+      console.log('[EXIT WS] 🎯 ID a ser removido:', scoreIdToRemove);
+
+      const updatedScoreboard = prevScores.filter(score => {
+        const keep = score.id !== scoreIdToRemove;
+        console.log(`[EXIT WS] Score ${score.id} === ${scoreIdToRemove}? ${!keep} (${keep ? 'MANTER' : 'REMOVER'})`);
+        return keep;
+      });
+
+      console.log(`[EXIT WS] 👋 Jogador removido: ${exitPayload.player?.username}`);
+      console.log('[EXIT WS] 📊 Scoreboard DEPOIS da remoção:', updatedScoreboard);
+      console.log('[EXIT WS] 📊 Quantidade: ', prevScores.length, '→', updatedScoreboard.length);
+
+      // Atualizar localStorage
+      const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
+      if (roomData) {
+        roomData.scoreboard = updatedScoreboard;
+        localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
+        console.log('💾 localStorage atualizado - jogador removido');
+      }
+
+      console.log('[EXIT WS] ✅ ============ FIM DO EVENTO DE SAÍDA ============');
+      return updatedScoreboard;
+    });
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
 
-    const savedRoom = localStorage.getItem(`room_${roomId}`);
-    if (savedRoom) {
-      const roomData = JSON.parse(savedRoom);
-      setRoom(roomData);
-      setIsPublic(roomData.isPublic);
-      setMaxPlayers(parseInt(roomData.maxNumberOfPlayers) || 10);
-      setCurrentScoreboard(roomData.scoreboard || []);
-    } else {
-      console.error(`Dados da sala ${roomId} não encontrados no localStorage.`);
-    }
+    setLoading(true);
+    
+    const fetchRoom = async () => {
+      try {
+        // 🚀 PASSO 1: Buscar a Fonte de Verdade (o Backend)
+        console.log('[SETUP] Buscando dados ATUALIZADOS no Backend...');
+        const roomDataFromBackend = await roomService.getRoomData(roomId); // Novo GET aqui!
 
+        // 2. Atualizar todos os estados do React com os dados frescos do Backend
+        setRoom(roomDataFromBackend);
+        setIsPublic(roomDataFromBackend.isPublic);
+        setMaxPlayers(parseInt(roomDataFromBackend.maxNumberOfPlayers) || 10);
+        setCurrentScoreboard(roomDataFromBackend.scoreboard || []);
 
-    // ✅ CRÍTICO: Conectar e inscrever nos eventos WebSocket
-    if (roomId) {
-      console.log('[SETUP] 🔌 Conectando ao WebSocket...');
+        localStorage.setItem(`room_${roomId}`, JSON.stringify(roomDataFromBackend));
 
-      webSocketService.connect().then(() => {
-        console.log('[SETUP] ✅ WebSocket conectado');
+        // 3. Conectar e Inscrever-se no WebSocket APÓS ter os dados da sala
+        console.log('[SETUP] 🔌 Conectando ao WebSocket...');
+        await webSocketService.connect();
+        console.log('[SETUP] ✅ WebSocket conectado e inscrevendo...');
 
-        console.log('[SETUP] 📡 Inscrevendo em JOIN...');
         webSocketService.subscribeToPlayerJoins(roomId, handlePlayerJoin);
-
-        console.log('[SETUP] 📡 Inscrevendo em EXIT...');
         webSocketService.subscribeToPlayerExits(roomId, handlePlayerExit);
 
-        console.log('[SETUP] ✅ Inscrições completas');
-      }).catch(err => {
-        console.error("[SETUP] ❌ Falha ao conectar ou inscrever no WS:", err);
-      });
-    }
+      } catch (error) {
+        console.error("❌ Erro fatal ao carregar a sala:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRoom();
 
     return () => {
       webSocketService.cleanupSubscriptions(roomId);
     };
-  }, [roomId]);
+  }, [roomId, handlePlayerJoin, handlePlayerExit]);
 
-  // ✅ MOVIDO PARA CÁ - Só será executado quando room existir
   const isHost = room ? String(userId) === String(room.owner?.id) : false;
 
   // Atualizar configurações da sala (SOMENTE HOST)
@@ -97,13 +171,12 @@ function Room() {
 
       if (myScore) {
         console.log('🚪 [LEAVE] 1️⃣ Enviando WS sendPlayerLeft PRIMEIRO...');
-        webSocketService.sendPlayerLeft(room.id, myScore.id); // ✅ ANTES
+        webSocketService.sendPlayerLeft(room.id, myScore.id);
 
-        // ✅ Aguardar um pouco para garantir que o WS foi processado
         await new Promise(resolve => setTimeout(resolve, 100));
 
         console.log('🚪 [LEAVE] 2️⃣ Agora chamando exitRoom...');
-        await roomService.exitRoom(myScore.id); // ✅ DEPOIS
+        await roomService.exitRoom(myScore.id);
       }
     }
 
@@ -114,80 +187,7 @@ function Room() {
     navigate('/');
   };
 
-  const handlePlayerJoin = (joinPayload) => {
-    console.log('[JOIN WS] 📨 Payload recebido:', joinPayload);
 
-    setCurrentScoreboard(prevScores => {
-      console.log('[JOIN WS] 📨 Payload completo recebido:', joinPayload);
-      console.log('[JOIN WS] 📨 Tipo do payload:', typeof joinPayload);
-      console.log('[JOIN WS] 📨 joinPayload.id:', joinPayload.id);
-      console.log('[JOIN WS] 📨 joinPayload.player:', joinPayload.player);
-      const normalizedPayload = {
-        id: joinPayload.scoreId || joinPayload.id, // Aceitar ambos os formatos
-        score: joinPayload.score || 0,
-        player: joinPayload.player
-      };
-
-      console.log('[JOIN WS] 📦 Payload normalizado:', normalizedPayload);
-
-      const isAlreadyPresent = prevScores.some(score => score.id === normalizedPayload.id);
-
-      if (!isAlreadyPresent) {
-        console.log(`[JOIN WS] ✅ Adicionando jogador: ${normalizedPayload.player?.username}`);
-
-        const updatedScoreboard = [...prevScores, normalizedPayload];
-
-        const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
-        if (roomData) {
-          roomData.scoreboard = updatedScoreboard;
-          localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
-          console.log('💾 localStorage atualizado com novo jogador');
-        }
-
-        return updatedScoreboard;
-      }
-
-      console.log('[JOIN WS] ⚠️ Jogador já presente, não adicionado');
-      return prevScores;
-    });
-  };
-
-  const handlePlayerExit = (exitPayload) => {
-    console.log('[EXIT WS] 📨 ============ EVENTO DE SAÍDA RECEBIDO ============');
-    console.log('[EXIT WS] 📨 Payload completo:', exitPayload);
-    console.log('[EXIT WS] 📨 scoreId:', exitPayload.scoreId);
-    console.log('[EXIT WS] 📨 player:', exitPayload.player);
-
-    setCurrentScoreboard(prevScores => {
-      console.log('[EXIT WS] 📊 Scoreboard ANTES da remoção:', prevScores);
-
-      const scoreIdToRemove = exitPayload.scoreId || exitPayload.id;
-      console.log('[EXIT WS] 🎯 ID a ser removido:', scoreIdToRemove);
-
-      const updatedScoreboard = prevScores.filter(score => {
-        const keep = score.id !== scoreIdToRemove;
-        console.log(`[EXIT WS] Score ${score.id} === ${scoreIdToRemove}? ${!keep} (${keep ? 'MANTER' : 'REMOVER'})`);
-        return keep;
-      });
-
-      console.log(`[EXIT WS] 👋 Jogador removido: ${exitPayload.player?.username}`);
-      console.log('[EXIT WS] 📊 Scoreboard DEPOIS da remoção:', updatedScoreboard);
-      console.log('[EXIT WS] 📊 Quantidade: ', prevScores.length, '→', updatedScoreboard.length);
-
-      // Atualizar localStorage
-      const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`));
-      if (roomData) {
-        roomData.scoreboard = updatedScoreboard;
-        localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
-        console.log('💾 localStorage atualizado - jogador removido');
-      }
-
-      console.log('[EXIT WS] ✅ ============ FIM DO EVENTO DE SAÍDA ============');
-      return updatedScoreboard;
-    });
-  };
-
-  // ✅ VERIFICAÇÃO: Se room não existe, mostrar loading
   if (!room) {
     return (
       <div className="min-h-screen bg-darkGunmetal flex items-center justify-center w-full">
@@ -196,7 +196,6 @@ function Room() {
     );
   }
 
-  // ✅ AGORA room existe, podemos acessar room.owner com segurança
   const roomOwnerId = room.owner?.id;
 
   console.log('--- DEBUG ROOM ---');

@@ -7,7 +7,7 @@ class WebsocketService {
         this.client = null;
         this.connected = false;
         this.subscriptions = new Map();
-        this.connectionPromise = null; // ✅ ADICIONAR
+        this.connectionPromise = null;
     }
 
     /**
@@ -15,7 +15,6 @@ class WebsocketService {
      * @returns {Promise<void>}
      */
     connect() {
-        // ✅ Se já existe uma promessa de conexão, retornar ela
         if (this.connectionPromise) {
             console.log('[WEBSOCKET] 🔌 Conexão em andamento, aguardando...');
             return this.connectionPromise;

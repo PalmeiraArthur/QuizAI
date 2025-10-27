@@ -64,6 +64,23 @@ const roomService = {
         const response = await api.get('/rooms');
         return response.data;
     },
+
+    getRoomData: async (roomId) => {
+        try {
+            const response = await api.get(`/rooms/${roomId}`);
+
+            console.log('FRONTEND: Dados da sala retornados:', response.data);
+
+            return response.data;
+            
+
+        } catch (error) {
+            console.error(`Erro ao tentar buscar a sala ${roomId}:`, error);
+            throw error;
+        }
+    },
 };
+
+
 
 export default roomService;
