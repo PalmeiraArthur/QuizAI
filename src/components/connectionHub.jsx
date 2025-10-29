@@ -24,32 +24,16 @@ function ConnectionHub() {
             localStorage.setItem('currentRoomId', newRoom.id);
             console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
 
-            // Garantir que `scoreboard` seja um array (frontend espera lista)
-            let roomToStore = { ...newRoom };
-            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
-                // RoomCreationResponseDTO.scoreboard is a PlayerScoreDTO (single item)
-                roomToStore.scoreboard = [roomToStore.scoreboard];
-            } else if (!roomToStore.scoreboard) {
-                roomToStore.scoreboard = [];
-            }
-
-            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomToStore));
+            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(newRoom));
             console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
             //Se conecta no WebSocket
             await webSocketService.connect(); 
             console.log("FRONTEND: Se conectou com o websocket.");
 
-            // Envia evento de Player Join com scoreId se disponível
-            const scoreId = roomToStore.scoreboard[0]?.id || localStorage.getItem('scoreId');
-            if (scoreId) {
-                localStorage.setItem('scoreId', scoreId);
-                webSocketService.sendPlayerJoin(newRoom.id, scoreId);
-                console.log("FRONTEND: Evento Player Join enviado com scoreId.");
-            } else {
-                webSocketService.sendPlayerJoin(newRoom.id);
-                console.log("FRONTEND: Evento Player Join enviado (sem scoreId).");
-            }
+            //Envia evento de Player Join (ainda não sabemos se é necessario)
+            webSocketService.sendPlayerJoin(newRoom.id);
+            console.log("FRONTEND: Evento Player Join enviado.");
 
             //Redirecionar
             navigate(`/sala/${newRoom.id}`);
