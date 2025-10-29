@@ -51,7 +51,7 @@ function FindRooms() {
 
     try {
       const joinResponse = await roomService.joinRoom(roomCode, userId);
-      
+
 
       // 2. LOG DE DEBUG - Ver estrutura da resposta
       console.log('[FRONTEND]: Resposta completa do backend:', joinResponse);
@@ -74,6 +74,9 @@ function FindRooms() {
       }
 
       console.log('[FRONTEND]: Score ID extraído:', guestScoreId);
+
+      // ✅ CORREÇÃO: Salvar o scoreId para que room.jsx possa usá-lo ao sair da sala
+      localStorage.setItem('scoreId', guestScoreId);
 
       // 4. Montar objeto da sala
       const roomDataToStore = {

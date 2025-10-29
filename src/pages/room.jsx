@@ -16,7 +16,7 @@ function Room() {
   const [currentScoreboard, setCurrentScoreboard] = useState([]);
 
   const userId = localStorage.getItem('userId');
-  
+
   const handlePlayerJoin = useCallback((joinPayload) => {
     console.log('[JOIN WS] 📨 Payload recebido:', joinPayload);
 
@@ -90,24 +90,36 @@ function Room() {
     });
   }, [roomId]);
 
+
   useEffect(() => {
     if (!roomId) return;
 
     setLoading(true);
-    
+
     const fetchRoom = async () => {
+      let roomDataToUse = null;
+
       try {
-        // 🚀 PASSO 1: Buscar a Fonte de Verdade (o Backend)
-        console.log('[SETUP] Buscando dados ATUALIZADOS no Backend...');
-        const roomDataFromBackend = await roomService.getRoomData(roomId); // Novo GET aqui!
+        // 🚀 PASSO 1: Buscar os dados no LocalStorage
+        const cachedRoomData = localStorage.getItem(`room_${roomId}`);
 
-        // 2. Atualizar todos os estados do React com os dados frescos do Backend
-        setRoom(roomDataFromBackend);
-        setIsPublic(roomDataFromBackend.isPublic);
-        setMaxPlayers(parseInt(roomDataFromBackend.maxNumberOfPlayers) || 10);
-        setCurrentScoreboard(roomDataFromBackend.scoreboard || []);
+        if (cachedRoomData) {
+          console.log('[SETUP] ✅ Dados da sala encontrados no LocalStorage.');
+          roomDataToUse = JSON.parse(cachedRoomData);
+        } else {
+          // Se não houver dados, a sala é inválida ou o usuário não deveria estar aqui.
+          console.error('[SETUP] ❌ Dados da sala não encontrados no LocalStorage.');
+          navigate('/');
+          return; // Para o fluxo se não houver dados
+        }
 
-        localStorage.setItem(`room_${roomId}`, JSON.stringify(roomDataFromBackend));
+        // 2. Atualizar todos os estados do React com os dados do LocalStorage
+        if (roomDataToUse) {
+          setRoom(roomDataToUse);
+          setIsPublic(roomDataToUse.isPublic);
+          setMaxPlayers(parseInt(roomDataToUse.maxNumberOfPlayers) || 10);
+          setCurrentScoreboard(roomDataToUse.scoreboard || []);
+        }
 
         // 3. Conectar e Inscrever-se no WebSocket APÓS ter os dados da sala
         console.log('[SETUP] 🔌 Conectando ao WebSocket...');
@@ -119,6 +131,8 @@ function Room() {
 
       } catch (error) {
         console.error("❌ Erro fatal ao carregar a sala:", error);
+        // Em caso de erro (ex: falha na conexão WS), ainda tentamos navegar.
+        // Se a falha foi na obtenção do cachedRoomData, o navigate já ocorreu.
       } finally {
         setLoading(false);
       }
@@ -127,9 +141,10 @@ function Room() {
     fetchRoom();
 
     return () => {
+      // Limpeza das inscrições ao desmontar o componente
       webSocketService.cleanupSubscriptions(roomId);
     };
-  }, [roomId, handlePlayerJoin, handlePlayerExit]);
+  }, [roomId, navigate, handlePlayerJoin, handlePlayerExit]);
 
   const isHost = room ? String(userId) === String(room.owner?.id) : false;
 
@@ -162,27 +177,32 @@ function Room() {
     if (isHost) {
       // Host deleta a sala
       await roomService.deleteRoom(room.id, userId);
-
+      
     } else {
       // Player normal sai da sala
-      const myScore = currentScoreboard.find(score =>
-        String(score.player?.id) === String(userId)
-      );
+      const scoreIdFromLocal = localStorage.getItem('scoreId');
 
-      if (myScore) {
+      // Usamos o scoreId do localStorage, que é mais confiável para a saída do próprio jogador.
+      if (scoreIdFromLocal) {
         console.log('🚪 [LEAVE] 1️⃣ Enviando WS sendPlayerLeft PRIMEIRO...');
-        webSocketService.sendPlayerLeft(room.id, myScore.id);
+        // Usamos o ID do localStorage
+        webSocketService.sendPlayerLeft(room.id, scoreIdFromLocal);
 
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // ✅ DELAY DE 500MS MANTIDO para a Race Condition
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         console.log('🚪 [LEAVE] 2️⃣ Agora chamando exitRoom...');
-        await roomService.exitRoom(myScore.id);
+        // Usamos o ID do localStorage
+        await roomService.exitRoom(scoreIdFromLocal);
+      } else {
+        console.error('⚠️ Não foi possível encontrar o scoreId no localStorage para sair da sala.');
       }
     }
 
     // Limpar localStorage
     localStorage.removeItem('currentRoomId');
     localStorage.removeItem(`room_${room.id}`);
+    localStorage.removeItem('scoreId');
 
     navigate('/');
   };
