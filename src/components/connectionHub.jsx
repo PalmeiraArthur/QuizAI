@@ -18,7 +18,7 @@ function ConnectionHub() {
 
         try {
             const newRoom = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
-            console.log("FRONTEND: Sala criada no Backend e resposta recebida. ");
+            console.log("FRONTEND: Dados completos da nova sala (newRoom):", newRoom); '    '
 
             //Salva no localStorage
             localStorage.setItem('currentRoomId', newRoom.id);
