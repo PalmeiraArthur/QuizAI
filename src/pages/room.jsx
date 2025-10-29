@@ -1,4 +1,3 @@
-// src/pages/room.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import roomService from '../services/roomService';
@@ -369,15 +368,54 @@ function Room() {
 
               </div>
 
-              {/* ✅ Botão de salvar - SOMENTE para HOST */}
+              {/* ✅ Botões do Host: Salvar Configurações, Criar Quiz e Jogar Quiz */}
               {isHost && (
-                <button
-                  onClick={handleUpdateRoomSettings}
-                  disabled={loading}
-                  className="w-full bg-plumpPurple text-white font-bold py-4 px-6 rounded-lg hover:bg-plumpPurple/80 disabled:opacity-50 transition text-lg"
-                >
-                  Salvar Configurações
-                </button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleUpdateRoomSettings}
+                      disabled={loading}
+                      className="flex-1 bg-plumpPurple text-white font-bold py-3 px-4 rounded-lg hover:bg-plumpPurple/80 disabled:opacity-50 transition text-lg"
+                    >
+                      Salvar Configurações
+                    </button>
+
+                    <button
+                      onClick={() => window.location.href = `/criar-quiz?roomId=${room.id}`}
+                      disabled={loading}
+                      className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-4 rounded-lg hover:bg-green-500 disabled:opacity-50 transition text-lg"
+                    >
+                      Criar Quiz
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      // Iniciar o quiz — navegamos para /play-quiz/:id com ?roomId
+                      const quizId = room.quizId || room.quiz?.id || localStorage.getItem('lastCreatedQuizId');
+                      if (!quizId) {
+                        alert('Nenhum quiz vinculado à sala. Crie um quiz primeiro.');
+                        return;
+                      }
+
+                      // Garantir que o quiz esteja salvo no localStorage
+                      const savedQuiz = localStorage.getItem(`quiz_${quizId}`);
+                      if (!savedQuiz) {
+                        // Tentar buscar do backend (se houver endpoint) — o room pode ter apenas quizId
+                        // Para simplicidade, apenas alertamos e pedimos para criar novamente
+                        alert('Quiz não encontrado localmente. Por favor, (re)crie o quiz.');
+                        return;
+                      }
+
+                      // Navegar para a página de jogo com o roomId como query
+                      window.location.href = `/play-quiz/${quizId}?roomId=${room.id}`;
+                    }}
+                    disabled={loading}
+                    className="w-full bg-silver text-white font-semibold text-[24px] py-3 px-8 rounded-lg hover:bg-white hover:text-silver disabled:opacity-50 transition"
+                  >
+                    Jogar Quiz
+                  </button>
+                </div>
               )}
             </div>
 
