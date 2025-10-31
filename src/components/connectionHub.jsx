@@ -8,38 +8,27 @@ function ConnectionHub() {
     const [loading, setLoading] = useState(false);
 
     const handleCreateRoom = async () => {
-
-        //Pega o id do usuário no localStorage para definir como owner da sala
-        const userId = localStorage.getItem('userId');
-        console.log("FRONTEND: pegando o id do usuário:", userId);
+        const roomOwnerId = localStorage.getItem('userId');
+        console.log("FRONTEND: pegando o id do usuário:", roomOwnerId);
 
         setLoading(true);
 
         try {
-            const newRoom = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
+            const newRoom = await roomService.createRoom({ ownerId: roomOwnerId, isPublic: true, maxNumberOfPlayers: 10 });
             console.log("FRONTEND: Dados completos da nova sala (newRoom):", newRoom); '    '
 
-            //Salva no localStorage
             localStorage.setItem('currentRoomId', newRoom.id);
             console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
 
-            // Garantir que `scoreboard` seja um array (frontend espera lista)
-            let roomToStore = { ...newRoom };
-            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
-                // RoomCreationResponseDTO.scoreboard is a PlayerScoreDTO (single item)
-                roomToStore.scoreboard = [roomToStore.scoreboard];
-            } else if (!roomToStore.scoreboard) {
-                roomToStore.scoreboard = [];
-            }
+            let roomPlayersScoreboardList = [newRoom.ownerScoreboard];
+            let roomData = {...newRoom, scoreboard: roomPlayersScoreboardList};
 
-            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomToStore));
+            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomData));
             console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
-            //Se conecta no WebSocket
-            await webSocketService.connect(); 
+            await webSocketService.connect();
             console.log("FRONTEND: Se conectou com o websocket.");
 
-            //Redirecionar
             navigate(`/sala/${newRoom.id}`);
             console.log("FRONTEND: Navegando para a sala criada.");
 
