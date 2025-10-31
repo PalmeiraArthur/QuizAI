@@ -266,7 +266,7 @@ function Room() {
                     </div>
                     <div>
                       <p className="text-white font-semibold">
-                        {isYou ? 'Você' : playerScore.player?.username || `Jogador ${i + 1}`}
+                        { isYou ? 'Você' : playerScore.player?.username }
                       </p>
                       {isPlayerHost && <p className="text-gray-300 text-sm">Host</p>}
                     </div>
