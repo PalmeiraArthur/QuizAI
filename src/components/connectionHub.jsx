@@ -31,10 +31,6 @@ function ConnectionHub() {
             await webSocketService.connect(); 
             console.log("FRONTEND: Se conectou com o websocket.");
 
-            //Envia evento de Player Join (ainda não sabemos se é necessario)
-            webSocketService.sendPlayerJoin(newRoom.id);
-            console.log("FRONTEND: Evento Player Join enviado.");
-
             //Redirecionar
             navigate(`/sala/${newRoom.id}`);
             console.log("FRONTEND: Navegando para a sala criada.");
