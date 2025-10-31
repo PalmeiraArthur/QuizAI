@@ -1,4 +1,3 @@
-// src/components/connectionHub.jsx
 import { useState } from 'react';
 import { useNavigate } from "react-router-dom";
 import roomService from '../services/roomService';
@@ -24,7 +23,16 @@ function ConnectionHub() {
             localStorage.setItem('currentRoomId', newRoom.id);
             console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
 
-            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(newRoom));
+            // Garantir que `scoreboard` seja um array (frontend espera lista)
+            let roomToStore = { ...newRoom };
+            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
+                // RoomCreationResponseDTO.scoreboard is a PlayerScoreDTO (single item)
+                roomToStore.scoreboard = [roomToStore.scoreboard];
+            } else if (!roomToStore.scoreboard) {
+                roomToStore.scoreboard = [];
+            }
+
+            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomToStore));
             console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
             //Se conecta no WebSocket
