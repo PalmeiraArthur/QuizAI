@@ -62,14 +62,14 @@ function ConnectionHub() {
     };
     
     return (
-        <div className="flex justify-center items-center gap-2 bg-raisinBlack p-[20px] w-[359px] h-[75px] rounded-[50px] mt-[30px] font-semibold text-[22px]
-        md:w-[617px] md:h-[100px]">
+        <div className="flex justify-center items-center gap-2 bg-russianViolet p-[20px] w-[380px] h-[75px] rounded-[50px] mt-[30px] font-semibold text-[16px]
+        md:w-[617px] md:h-[100px] md:text-[22px] lg:w-[617px] lg:h-[100px]">
 
             <button
                 onClick={() => navigate('/criar-quiz')}
                 disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
+                className="bg-slateBlue rounded-[50px] w-[120px] h-[50px] hover:bg-white hover:text-slateBlue cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                md:w-[180px] md:h-[61px]"
             >
                 Criar Quiz
             </button>
@@ -77,8 +77,8 @@ function ConnectionHub() {
             <button
                 onClick={handleCreateRoom}
                 disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
+                className="bg-slateBlue rounded-[50px] w-[120px] h-[50px] hover:bg-white hover:text-slateBlue cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                md:w-[180px] md:h-[61px]"
             >
                 {loading ? (
                     <span className="flex items-center justify-center">
@@ -93,10 +93,10 @@ function ConnectionHub() {
             </button>
 
             <button
-                onClick={() => navigate('/achar-salas')}
+                onClick={() => navigate('/Encontrar-salas')}
                 disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
+                className="bg-slateBlue rounded-[50px] w-[120px] h-[50px] hover:bg-white hover:text-slateBlue cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                md:w-[180px] md:h-[61px]"
             >
                 Salas
             </button>

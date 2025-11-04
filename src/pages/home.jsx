@@ -1,27 +1,25 @@
-//aqui no home eu apenas defino qual a constante que eu quero puxar os ids e ele renderiza a lista com os ids em sequencia e consequentemente seu cover e seu titulo.
-
+// src/pages/home.jsx
 import Navbar from "../components/navbar";
 import ConnectionHub from "../components/connectionHub";
+import BackgroundPattern from "../components/backgroundPattern";
 
 
 function Home() {
   return (
-    <div>
-      <header>
-        <Navbar />
-      </header>
-
-      <main className="bg-darkGunmetal mt-[100px] rounded-t-[13px] w-full min-h-screen flex flex-col gap-[30px] items-center shadow-[0px_0px_17px_3px_rgba(0,_0,_0,_0.4)]
-      md:w-[1140px] md:mt-0 md:pt-[80px] md:rounded-none ">
-        <ConnectionHub />
-
-        <h1>
-          working in progress...
-        </h1>
-
-
-      </main>
-    </div>
+    <BackgroundPattern>
+      <div>
+        <header>
+          <Navbar />
+        </header>
+        <main className="bg-russianViolet bg-gradient-padrao mt-[40px] rounded-t-[13px] w-screen h-dvh flex flex-col gap-[30px] items-center shadow-[0px_0px_17px_3px_rgba(0,_0,_0,_0.4)]
+        lg:w-[1140px] lg:mt-0 lg:pt-[80px] lg:rounded-none ">
+          <ConnectionHub />
+          <h1>
+            working in progress...
+          </h1>
+        </main>
+      </div>
+    </BackgroundPattern>
   );
 }
 

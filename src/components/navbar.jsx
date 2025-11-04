@@ -12,27 +12,47 @@ function Navbar() {
     };
 
     return (
-        <nav className="hidden bg-raisinBlack/80 fixed top-0 w-[1140px] h-[80px] rounded-b-md md:block">
-            <div className="flex justify-between items-center h-full px-6">
-                <div onClick={() => navigate('/')} className="flex items-center gap-3 cursor-pointer ">
-                    <img src="/quizAiTransparente.svg" alt="Logo" className="w-22 h-auto" />
-                </div>
+        <div>
+            <nav className="hidden bg-russianViolet fixed top-0 w-[1140px] h-[80px] rounded-b-md
+            lg:block">
 
-                <div className="flex items-center gap-4">
-                    <div className="text-right">
-                        <p className="text-gray-400 text-xs">Bem-vindo,</p>
-                        <p className="text-white font-semibold">{username}</p>
+                <div className="flex justify-between items-center h-full px-6">
+                    <div onClick={() => navigate('/')} className="flex items-center gap-3 cursor-pointer ">
+                        <img src="/quizAiTransparente.svg" alt="Logo" className="w-22 h-auto" />
                     </div>
-
-                    <button
-                        onClick={handleLogout}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                    >
-                        Sair
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right">
+                            <p className="text-pistachio text-xs">Bem-vindo,</p>
+                            <p className="text-white font-semibold">{username}</p>
+                        </div>
+                        <button onClick={() => navigate('/configurações')} >
+                            <img
+                                src="src/assets/icons/gear.svg"
+                                alt="Configurações"
+                                className="w-auto h-8 hover:opacity-80 cursor-pointer hover:rotate-90"
+                            />
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </nav>
+            </nav>
+
+{/*-------------------------- Mobile Navbar------------------------------------------ */}
+            <nav className='flex flex-row justify-end itemsce gap-4 mt-4
+            lg:hidden'>
+                <div className="text-right">
+                    <p className="text-pistachio text-xs">Bem-vindo,</p>
+                    <p className="text-white font-semibold">{username}</p>
+                </div>
+                <button onClick={() => navigate('/configurações')}>
+                    <img
+                        src="src/assets/icons/gear.svg"
+                        alt="Configurações"
+                        className="w-6 h-6 hover:opacity-80 cursor-pointer"
+                    />
+                </button>
+
+            </nav>
+        </div>
     );
 }
 
