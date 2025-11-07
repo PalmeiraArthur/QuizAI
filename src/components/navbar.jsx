@@ -4,11 +4,10 @@ function Navbar() {
     const navigate = useNavigate();
     const username = localStorage.getItem('username');
 
-    const handleLogout = () => {
-        if (window.confirm('Deseja realmente sair?')) {
-            localStorage.clear();
-            navigate('/user');
-        }
+    const handleSettingsClick = () => {
+        const audio = new Audio('/src/assets/sounds/openSettings.wav');
+        audio.play();
+        navigate('/configurações');
     };
 
     return (
@@ -25,7 +24,7 @@ function Navbar() {
                             <p className="text-pistachio text-xs">Bem-vindo,</p>
                             <p className="text-white font-semibold">{username}</p>
                         </div>
-                        <button onClick={() => navigate('/configurações')} >
+                        <button onClick={handleSettingsClick} >
                             <img
                                 src="src/assets/icons/gear.svg"
                                 alt="Configurações"
@@ -36,14 +35,14 @@ function Navbar() {
                 </div>
             </nav>
 
-{/*-------------------------- Mobile Navbar------------------------------------------ */}
+            {/*-------------------------- Mobile Navbar------------------------------------------ */}
             <nav className='flex flex-row justify-end itemsce gap-4 mt-4
             lg:hidden'>
                 <div className="text-right">
                     <p className="text-pistachio text-xs">Bem-vindo,</p>
                     <p className="text-white font-semibold">{username}</p>
                 </div>
-                <button onClick={() => navigate('/configurações')}>
+                <button onClick={handleSettingsClick}>
                     <img
                         src="src/assets/icons/gear.svg"
                         alt="Configurações"

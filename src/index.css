@@ -5,9 +5,8 @@
   --color-slateBlue: #7C53C5;
   --color-plumpPurple: #5649B6;
   --color-russianViolet: #30204C;
+  --color-darkGunmetal: #211D31;
   --color-pistachio: #8EDE5F;
-  --color-mandarin: #ED7844;
-  --color-silver: #BABABA;
   --color-raisinBlack: #14121E;
 
   --radius-md: 5px;
@@ -37,7 +36,7 @@
 @layer base {
 
 *{
-    @apply transition duration-500 ease-in-out;
+    @apply transition duration-350 ease-in-out;
   }
 }
 

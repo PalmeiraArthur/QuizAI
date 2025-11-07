@@ -19,13 +19,19 @@ function Settings() {
         navigate('/user');
     };
 
+    const handleCloseSettings = () => { 
+        const closeAudio = new Audio('/src/assets/sounds/closeSettings.wav');
+        closeAudio.play();
+        navigate('/');
+    };
+
     return (
         <BackgroundPattern>
             <div className='p-10 h-screen'>
                 <main className='relative bg-russianViolet bg-gradient-padrao shadow-padrao p-13 min-h-[820px] w-screen lg:w-[1140px] flex justify-between flex-col items-center rounded-md'>
 
-                    <button onClick={() => navigate('/')}
-                        className='absolute top-5 right-5 flex justify-center items-center p-1.5 bg bg-red-600/0 rounded-sm border-2 border-red-700 group hover:bg-red-600/100 hover:border-red-700'>
+                    <button onClick={handleCloseSettings}
+                        className='absolute top-5 right-5 flex justify-center items-center p-1 bg bg-red-600/0 rounded-sm border-2 border-red-700 group hover:bg-red-600/100 hover:border-red-700'>
 
                         <X className='group-hover:rotate-90 text-white stroke-3 '/>
 
@@ -37,7 +43,7 @@ function Settings() {
 
                     <button
                         onClick={handleLogout}
-                        className="px-10 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-white hover:text-red-600 "
+                        className="px-10 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-white hover:text-red-600 "
                     >
                         Sair da sessão
                     </button>
