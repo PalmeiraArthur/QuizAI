@@ -1,12 +1,13 @@
-
-//src\pages\findRooms.jsx
+// src/pages/findRooms.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
-import toast, { Toaster } from 'react-hot-toast';
+import RoomCard from '../components/roomCard';
+import toast from 'react-hot-toast';
 import webSocketService from '../services/websocketService';
-
+import { RefreshCw, SquarePlus, ArrowBigLeftDash } from 'lucide-react';
+import CustomToaster from '../components/customToaster';
 
 function FindRooms() {
   const navigate = useNavigate();
@@ -26,11 +27,9 @@ function FindRooms() {
       const publicRooms = await roomService.getPublicRooms();
       console.log('[FRONTEND]: Procurando salas públicas...');
 
-
       const roomsArray = Array.isArray(publicRooms) ? publicRooms : Array.from(publicRooms);
       setRooms(roomsArray);
       console.log('Salas públicas:', roomsArray);
-
     } catch (err) {
       console.error('Erro ao carregar salas:', err);
       setError('Erro ao carregar salas públicas');
@@ -52,15 +51,11 @@ function FindRooms() {
     try {
       const joinResponse = await roomService.joinRoom(roomCode, userId);
 
-
-      // 2. LOG DE DEBUG - Ver estrutura da resposta
       console.log('[FRONTEND]: Resposta completa do backend:', joinResponse);
       console.log('[FRONTEND]: joinResponse.scoreboard:', joinResponse.scoreboard);
 
-      // 3. Extrair o scoreId do novo jogador
       const guestScore = joinResponse.scoreboard;
       console.log('[FRONTEND]: Score do jogador recebido:', guestScore);
-
 
       if (!guestScore) {
         throw new Error("Resposta da API incompleta: scoreboard não encontrado.");
@@ -68,17 +63,14 @@ function FindRooms() {
 
       const guestScoreId = guestScore.id;
 
-      // Validação: Verificar se guestScoreId existe
       if (!guestScoreId) {
         throw new Error("Resposta da API incompleta: ID do placar não encontrado.");
       }
 
       console.log('[FRONTEND]: Score ID extraído:', guestScoreId);
 
-      // ✅ CORREÇÃO: Salvar o scoreId para que room.jsx possa usá-lo ao sair da sala
       localStorage.setItem('scoreId', guestScoreId);
 
-      // 4. Montar objeto da sala
       const roomDataToStore = {
         id: joinResponse.roomId,
         roomCode: joinResponse.roomCode,
@@ -86,18 +78,16 @@ function FindRooms() {
         maxNumberOfPlayers: joinResponse.maxNumberOfPlayers,
         owner: joinResponse.owner,
         scoreboard: [
-          guestScore, // Você (novo jogador)
-          ...joinResponse.playersScores // Jogadores que já estavam
+          guestScore,
+          ...joinResponse.playersScores
         ],
       };
 
       console.log('💾 Dados da sala para armazenar:', roomDataToStore);
 
-      // 5. Salvar no localStorage
       localStorage.setItem('currentRoomId', roomDataToStore.id);
       localStorage.setItem(`room_${roomDataToStore.id}`, JSON.stringify(roomDataToStore));
 
-      // 6. ENVIAR EVENTO WEBSOCKET
       console.log('🔌 Conectando ao WebSocket...');
       await webSocketService.connect();
 
@@ -107,7 +97,6 @@ function FindRooms() {
       });
       webSocketService.sendPlayerJoin(roomDataToStore.id, guestScoreId);
 
-      // 7. Redirecionar
       navigate(`/sala/${roomDataToStore.id}`);
       console.log('➡️ Navegando para a sala:', roomDataToStore.id);
 
@@ -117,7 +106,6 @@ function FindRooms() {
 
       const errorMessage = err.response?.data?.detail || err.message || 'Não foi possível entrar na sala.';
       toast.error(errorMessage);
-
     } finally {
       setLoading(false);
     }
@@ -125,7 +113,7 @@ function FindRooms() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-darkGunmetal">
+      <div className="min-h-screen bg-darkGunmetal ">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-100px)] mt-[100px]">
           <div className="text-center">
@@ -138,157 +126,78 @@ function FindRooms() {
   }
 
   return (
-    <div className="min-h-screen bg-raisinBlack flex justify-center">
+    <div className="relative min-h-screen bg-russianViolet  shadow-padrao w-dvw flex justify-start flex-col gap-20 items-center px-3 
+    lg:py-28 lg:px-18 lg:gap-10 lg:w-[1140px]">
+      <CustomToaster/>
+      
 
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          success: {
-            style: {
-              fontFamily: '"Poppins", sans-serif', // define a fonte específica
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#5649B6',
-              background: 'white',
-            },
-            iconTheme: {
-              primary: '#5649B6',
-              secondary: 'white',
-            },
+      <button onClick={() => navigate('/')}>
+        <ArrowBigLeftDash className='absolute top-3 left-3 h-auto w-9 text-pistachio
+        lg:top-10 lg:left-18 lg:w-10' />
+      </button>
 
-          },
-        }}
-      />
-
-
-      <main className="container px-18 py-8 w-[1140px] md:mt-[100px]">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">
-                Salas Públicas
-              </h1>
-              <p className="text-gray-400">
-                Veja as salas criadas por outros usuários
-              </p>
-            </div>
-            <button
-              onClick={loadRooms}
-              className="px-6 py-3 bg-pistachio text-raisinBlack font-bold rounded-lg hover:bg-raisinBlack hover:text-pistachio transition-colors"
-            >
-              Atualizar
-            </button>
+      <main className="container flex flex-col gap-8">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-2 md:text-4xl">
+              Salas Públicas
+            </h1>
+            <p className="text-gray-400">
+              Veja as salas criadas por outros usuários
+            </p>
           </div>
 
-          {/* Erro */}
-          {error && (
-            <div className="p-4 bg-red-900/50 border border-red-500 text-red-200 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
-
-          {/* Lista de Salas */}
-          {rooms.length === 0 ? (
-            <div className="bg-darkGunmetal rounded-lg shadow-[inset_0px_0px_13px_1px_rgba(0,_0,_0,_0.3)] p-12 text-center">
-
-              <h3 className="text-2xl font-bold text-white mb-2">
-                Nenhuma sala pública disponível
-              </h3>
-              <p className="text-gray-400 mb-6">
-                Seja o primeiro a criar uma sala!
-              </p>
-
-            </div>
-          ) : (
-            <div className="flex justify-start bg-darkGunmetal rounded-md shadow-[inset_0px_0px_13px_1px_rgba(0,_0,_0,_0.3)] p-6 text-center">
-              {rooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="bg-raisinBlack w-[300px] h-[230px] rounded-md shadow-xl p-6 flex flex-col gap-6 justify-center items-center "
-                >
-                  {/* Header do Card */}
-                  <div className="flex flex-col w-fit gap-1 ">
-
-                    <h3 className="text-[24px] font-semibold text-white">
-                      {room.quizTopic}
-                    </h3>
-                    <span className="flex justify-center items-center bg-emerald-950 py-1 text-pistachio text-xs font-semibold rounded-md">
-                      PÚBLICA
-                    </span>
-
-                  </div>
-
-                  {/* Informações da Sala */}
-                  <div className="grid grid-cols-3 grid-rows-1">
-
-                    <div className='flex flex-col justify-center items-center gap-3'>
-                      <img src="src\assets\sounds\iconsButtons\crown.svg" width="30" />
-
-                      <span
-                        className={`font-semibold ${room.ownerName === currentUsername ? 'text-pistachio' : 'text-white'
-                          }`}
-                      >
-                        <span className="whitespace-nowrap text-[14px] font-semibold">
-                          {room.ownerName}
-                          {room.ownerName === currentUsername && (
-                            <span className="text-pistachio"> (Você)</span>
-                          )}
-                        </span>
-                      </span>
-
-                    </div>
-
-                    <div className='flex flex-col justify-center items-center gap-1'>
-                      <img src="src\assets\sounds\iconsButtons\maxPlayers.svg" width="21" />
-
-                      <p className='text-pistachio font-semibold'>
-                        1/{room.maxNumberOfPlayers}
-                      </p>
-
-                    </div>
-
-                    <div className="flex flex-col items-center">
-
-                      <img src="src\assets\sounds\iconsButtons\codeIcon.svg" width="30" />
-                      <code className="text-pistachio text-[18px] font-semibold racking-wider">
-                        {room.roomCode}
-                      </code>
-
-                    </div>
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(room.roomCode);
-                        toast.success('Código copiado!');
-                      }}
-                      className="flex-1 px-4 py-2 bg-plumpPurple text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors text-sm"
-                    >
-                      <img src="src\assets\sounds\iconsButtons\copyIcon.svg" width="20" />
-                    </button>
-
-                    <button
-                      onClick={() => handleJoinRoom(room.roomCode, room.id)}
-                      className="flex gap-2 px-4 py-2 bg-pistachio text-white font-semibold rounded-lg transition-colors text-sm"
-                    >
-                      <img src="src\assets\sounds\iconsButtons\joinIcon.svg" width="20" />
-                      <p>
-                        Entrar na sala
-                      </p>
-                    </button>
-
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-
+          <button
+            onClick={loadRooms}
+            className="flex group gap-2 px-2 py-2 bg-pistachio text-white font-bold rounded-md hover:bg-white hover:text-pistachio"
+          >
+            <RefreshCw className='group-hover:rotate-180 stroke-3' />
+          </button>
         </div>
+
+        {/* Erro */}
+        {error && (
+          <div className="p-4 bg-red-900/50 border border-red-500 text-red-200 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
+        {/* Lista de Salas */}
+        {rooms.length === 0 ? (
+          <div className="bg-darkGunmetal rounded-lg shadow-[inset_0px_0px_13px_1px_rgba(0,_0,_0,_0.3)] p-12 text-center">
+            <h3 className="text-2xl font-bold text-white mb-2">
+              Nenhuma sala pública disponível
+            </h3>
+            <p className="text-gray-400 mb-6">
+              Seja o primeiro a criar uma sala!
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-3 max-h-[450px] overflow-y-auto bg-darkGunmetal rounded-md shadow-[inset_0px_0px_13px_1px_rgba(0,_0,_0,_0.3)] px-9 py-6 text-center
+          lg:justify-start lg:max-h-[520px] lg:overflow-y-auto">
+            {rooms.map((room) => (
+              <RoomCard
+                key={room.id}
+                room={room}
+                currentUsername={currentUsername}
+                onJoinRoom={handleJoinRoom}
+              />
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* Footer */}
+      <footer className='flex gap-10'>
+        <button
+          onClick={loadRooms}
+          className="flex justify-center items-center gap-2 px-6 py-3 text-xl font-semibold bg-pistachio text-white rounded-md hover:bg-white hover:text-pistachio"
+        >
+          <SquarePlus className='stroke-3' />
+          Criar Sala
+        </button>
+      </footer>
     </div>
   );
 }

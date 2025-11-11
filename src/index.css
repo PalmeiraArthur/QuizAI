@@ -1,22 +1,48 @@
 @import "tailwindcss";
 
 @theme {
+  --color-amethyst: #975BCF;
+  --color-slateBlue: #7C53C5;
   --color-plumpPurple: #5649B6;
+  --color-russianViolet: #30204C;
   --color-darkGunmetal: #211D31;
   --color-pistachio: #8EDE5F;
-  --color-mandarin: #ED7844;
-  --color-amethyst: #975BCF;
-  --color-silver: #BABABA;
   --color-raisinBlack: #14121E;
 
-  --radius-md: 5px; 
+  --radius-md: 5px;
+
+  --background-pattern: url('/assets/pattern.svg');
+
+  --shadow-padrao: 0px 0px 10px 5px rgba(0, 0, 0, 0.2);
+
+  --gradient-padrao: linear-gradient(to bottom right, #59168b, #30204C);
+
 }
+
+@layer utilities {
+  .bg-gradient-padrao {
+    background: var(--gradient-padrao);
+  }
+}
+
 
 /* Variáveis globais ficam no :root */
 :root {
   --font-base: "Poppins", sans-serif;
 }
 
+
+
+@layer base {
+
+*{
+    @apply transition duration-350 ease-in-out;
+  }
+}
+
+html {
+  min-height: 100vh
+}
 
 /* Estilo geral do app fica no body */
 body {
@@ -25,8 +51,6 @@ body {
   font-style: normal;
 
   color: rgba(255, 255, 255, 0.87);
-  background-color: var(--color-plumpPurple);
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -34,13 +58,18 @@ body {
 
   display: flex;
   justify-content: center;
-
+  margin: 0;
+  padding: 0;
+  background: #975BCF;
+  background: linear-gradient(180deg, rgb(151, 91, 207) 1%, rgb(125, 83, 197) 50%, rgb(85, 72, 182) 100%);
+  background-size: cover;
+  background-repeat: no-repeat;
+  min-height: 100vh;
 }
 
 button {
   cursor: pointer;
 }
-
 
 @keyframes float {
   0% {
@@ -70,12 +99,10 @@ button {
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: scale(0.9);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -83,13 +110,19 @@ button {
   animation: fade-in 0.25s ease-out;
 }
 
-
-@layer base {
-
-  * {
-    @apply transition-all duration-300 ease-in-out;
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
+
+.animate-fade-out {
+  animation: fade-out 0.25s ease-out forwards;
+}
+
 
 
 
@@ -109,7 +142,7 @@ button {
 }
 
 .cut-left-bottom {
- clip-path: polygon(0 0, 100% 0, 100% 100%, 5% 100%, 0 90%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 5% 100%, 0 90%);
 }
 
 /* Hover e animação */
@@ -119,5 +152,29 @@ button {
 
 .answer-button:hover {
   transform: scale(1.03);
-  
+
+}
+
+/* Efeito Shiny - pode ser reutilizado em qualquer componente */
+.shiny-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.shiny-container::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--y, 0) * 1px - 150px);
+  left: calc(var(--x, 0) * 1px - 150px);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(147, 51, 234, 0.4), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shiny-container:hover::before {
+  opacity: 1;
 }
