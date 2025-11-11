@@ -1,5 +1,6 @@
+// src/pages/CreateQuiz.jsx
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import quizService from '../services/quizService';
 import roomService from '../services/roomService';
 
@@ -14,9 +15,6 @@ function CreateQuiz() {
         numberOfAnswers: 4
     });
     
-    const [searchParams] = useSearchParams();
-    const attachedRoomId = searchParams.get('roomId');
-
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -40,94 +38,68 @@ function CreateQuiz() {
             }
 
             // 1. Cleanup: tentar remover sala e quiz anteriores
-            // Se estamos anexando o quiz a uma sala existente (attachedRoomId), NÃO removemos a sala atual.
-            if (!attachedRoomId) {
-                const currentRoomId = localStorage.getItem('currentRoomId');
-                if (currentRoomId) {
+            const currentRoomId = localStorage.getItem('currentRoomId');
+            if (currentRoomId) {
+                try {
+                    await roomService.deleteRoom(currentRoomId, userId);
+                    console.log('✅ Sala anterior removida:', currentRoomId);
+                    
+                    // Se tinha quiz vinculado, remover também
+                    const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
+                    const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
+                    if (roomObj?.quizId) {
+                        try {
+                            await quizService.deleteQuiz(roomObj.quizId);
+                            localStorage.removeItem(`quiz_${roomObj.quizId}`);
+                            console.log('✅ Quiz anterior removido:', roomObj.quizId);
+                        } catch (err) {
+                            console.warn('⚠️ Falha ao remover quiz anterior:', err);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('⚠️ Falha ao remover sala anterior:', err);
+                    // Se falhou, tentar buscar sala do owner
                     try {
-                        await roomService.deleteRoom(currentRoomId, userId);
-                        console.log('✅ Sala anterior removida:', currentRoomId);
-
-                        // Se tinha quiz vinculado, remover também
-                        const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
-                        const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
-                        if (roomObj?.quizId) {
-                            try {
-                                await quizService.deleteQuiz(roomObj.quizId);
-                                localStorage.removeItem(`quiz_${roomObj.quizId}`);
-                                console.log('✅ Quiz anterior removido:', roomObj.quizId);
-                            } catch (err) {
-                                console.warn('⚠️ Falha ao remover quiz anterior:', err);
+                        const ownerRoom = await roomService.getRoomByOwner(userId);
+                        if (ownerRoom?.id) {
+                            await roomService.deleteRoom(ownerRoom.id, userId);
+                            console.log('✅ Sala do owner removida:', ownerRoom.id);
+                            if (ownerRoom.quizId) {
+                                await quizService.deleteQuiz(ownerRoom.quizId);
+                                console.log('✅ Quiz do owner removido:', ownerRoom.quizId);
                             }
                         }
-                    } catch (err) {
-                        console.warn('⚠️ Falha ao remover sala anterior:', err);
+                    } catch (ownerErr) {
+                        console.warn('⚠️ Falha ao buscar/remover sala do owner:', ownerErr);
                     }
-
-                    // Limpar localStorage
-                    localStorage.removeItem(`room_${currentRoomId}`);
-                    localStorage.removeItem('currentRoomId');
                 }
+                // Limpar localStorage
+                localStorage.removeItem(`room_${currentRoomId}`);
+                localStorage.removeItem('currentRoomId');
             }
 
             // 2. Criar novo quiz
             const quiz = await quizService.createQuiz({
                 topic: formData.topic,
                 numberOfQuestions: formData.numberOfQuestions,
-                numberOfAnswers: formData.numberOfAnswers
+                numberOfAnswers: formData.numberOfAnswers,
+                ownerId: userId
             });
 
-            // Salvar quiz localmente
+            // 3. Criar nova sala
+            const room = await roomService.createRoom(userId, true, 10);
+
+            // 4. Vincular quiz à sala
+            await roomService.updateRoom(room.id, userId, quiz.id);
+
+            // 5. Salvar dados
             localStorage.setItem('lastCreatedQuizId', quiz.id);
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
-
-            // Se o formulário foi chamado com ?roomId=, anexamos o quiz a essa sala
-            if (attachedRoomId) {
-                try {
-                    // O backend não expõe GET /rooms/{id}; usamos localStorage para obter os dados da sala
-                    const existingRoom = JSON.parse(localStorage.getItem(`room_${attachedRoomId}`) || '{}');
-                    if (!existingRoom || !existingRoom.id) {
-                        console.warn('Sala não encontrada no localStorage para anexar o quiz:', attachedRoomId);
-                        setError('Sala não encontrada localmente. Atualize a página e tente novamente.');
-                        return;
-                    }
-
-                    const payload = {
-                        ownerId: userId,
-                        isPublic: existingRoom?.isPublic ?? true,
-                        maxNumberOfPlayers: existingRoom?.maxNumberOfPlayers ?? 10,
-                        quizId: quiz.id
-                    };
-
-                    await roomService.updateRoom(attachedRoomId, payload);
-
-                    // Atualizar localStorage da sala
-                    const updated = { ...existingRoom, quizId: quiz.id };
-                    localStorage.setItem(`room_${attachedRoomId}`, JSON.stringify(updated));
-
-                    navigate(`/sala/${attachedRoomId}`);
-                    return;
-                } catch (err) {
-                    console.warn('Falha ao anexar quiz à sala:', err);
-                    setError('Não foi possível anexar o quiz à sala.');
-                    return;
-                }
-            }
-
-            // Caso contrário, criamos uma nova sala e anexamos o quiz (fluxo legado)
-            const room = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
-            await roomService.updateRoom(room.id, { ownerId: userId, isPublic: true, maxNumberOfPlayers: room.maxNumberOfPlayers || 10, quizId: quiz.id });
-
             localStorage.setItem('currentRoomId', room.id);
-            const roomToStore = { ...room };
-            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
-                roomToStore.scoreboard = [roomToStore.scoreboard];
-            } else if (!roomToStore.scoreboard) {
-                roomToStore.scoreboard = [];
-            }
-            localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
+            localStorage.setItem(`room_${room.id}`, JSON.stringify(room));
 
-            navigate(`/sala/${room.id}`);
+            // 6. Navegar para lobby
+            navigate(`/lobby/${room.id}`);
 
         } catch (err) {
             console.error('Erro ao criar quiz/sala:', err);

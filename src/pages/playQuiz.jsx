@@ -381,31 +381,6 @@ function PlayQuiz() {
                       index === 2 ? 'cut-right-top' :
                         'cut-left-top';
 
-                // Determina o tamanho da fonte baseado no comprimento do texto e palavras
-                const getFontSize = (text) => {
-                  const length = text.length;
-                  const words = text.split(/\s+/).length;
-                  
-                  if (length > 300 || words > 30) return 'text-[10px]'; 
-                  // Textos extremamente longos
-                  if (length > 300 || words > 25) return 'text-sm'; // 14px
-                  
-                  // Textos muito longos
-                  if (length > 200 || words > 20) return 'text-base'; // 16px
-                  
-                  // Textos longos
-                  if (length > 150 || words > 14) return 'text-lg'; // 18px
-                  
-                  // Textos médios-longos
-                  if (length > 100 || words > 10) return 'text-xl'; // 20px
-                  
-                  // Textos médios
-                  if (length > 50 || words > 8) return 'text-2xl'; // 24px
-                  
-                  // Textos curtos (padrão)
-                  return 'text-[30px]';
-                };
-
                 // ✅ Verificar se é a resposta correta
                 const isCorrectAnswer = correctAnswer && answer.id === correctAnswer;
                 const isSelectedAnswer = answer.id === selectedAnswer;
@@ -415,13 +390,13 @@ function PlayQuiz() {
                     key={answer.id}
                     onClick={() => handleSelectAnswer(answer.id)}
                     disabled={isAnswerSubmitted}
-                    className={`font-semibold w-[322px] h-[165px] ${getFontSize(answer.value)} text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button
+                    className={`font-semibold w-[322px] h-[165px] text-[30px] text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button
                       ${cutClass}
                       ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}`
                     }
                   >
                     <div className="flex items-center justify-center">
-                      <span className="flex-1 break-words">{answer.value}</span>
+                      <span className="flex-1">{answer.value}</span>
                       {isAnswerSubmitted && (
                         <>
                           {/* Selecionada e correta */}
@@ -444,8 +419,7 @@ function PlayQuiz() {
                           )}
                         </>
                       )}
-                     </div>
-                    
+                    </div>
                   </button>
                 );
               })}

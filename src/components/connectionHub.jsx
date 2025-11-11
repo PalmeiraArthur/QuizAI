@@ -1,3 +1,4 @@
+// src/components/connectionHub.jsx
 import { useState } from 'react';
 import { useNavigate } from "react-router-dom";
 import roomService from '../services/roomService';
@@ -8,27 +9,33 @@ function ConnectionHub() {
     const [loading, setLoading] = useState(false);
 
     const handleCreateRoom = async () => {
-        const roomOwnerId = localStorage.getItem('userId');
-        console.log("FRONTEND: pegando o id do usuário:", roomOwnerId);
+
+        //Pega o id do usuário no localStorage para definir como owner da sala
+        const userId = localStorage.getItem('userId');
+        console.log("FRONTEND: pegando o id do usuário:", userId);
 
         setLoading(true);
 
         try {
-            const newRoom = await roomService.createRoom({ ownerId: roomOwnerId, isPublic: true, maxNumberOfPlayers: 10 });
+            const newRoom = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
             console.log("FRONTEND: Dados completos da nova sala (newRoom):", newRoom); '    '
 
+            //Salva no localStorage
             localStorage.setItem('currentRoomId', newRoom.id);
             console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
 
-            let roomPlayersScoreboardList = [newRoom.ownerScoreboard];
-            let roomData = {...newRoom, scoreboard: roomPlayersScoreboardList};
-
-            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomData));
+            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(newRoom));
             console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
-            await webSocketService.connect();
+            //Se conecta no WebSocket
+            await webSocketService.connect(); 
             console.log("FRONTEND: Se conectou com o websocket.");
 
+            //Envia evento de Player Join (ainda não sabemos se é necessario)
+            webSocketService.sendPlayerJoin(newRoom.id);
+            console.log("FRONTEND: Evento Player Join enviado.");
+
+            //Redirecionar
             navigate(`/sala/${newRoom.id}`);
             console.log("FRONTEND: Navegando para a sala criada.");
 
