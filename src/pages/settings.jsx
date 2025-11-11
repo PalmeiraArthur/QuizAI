@@ -27,8 +27,9 @@ function Settings() {
 
     return (
         <BackgroundPattern>
-            <div className='p-10 h-screen'>
-                <main className='relative bg-russianViolet bg-gradient-padrao shadow-padrao p-13 min-h-[820px] w-screen lg:w-[1140px] flex justify-between flex-col items-center rounded-md'>
+            <div className='h-screen w-screen flex justify-center items-center'>
+                
+                <main className='relative flex flex-col justify-between items-center bg-russianViolet bg-gradient-padrao shadow-padrao p-13 w-full max-w-[1140px] h-full mx-[20px] max-h-[740px] rounded-md'>
 
                     <button onClick={handleCloseSettings}
                         className='absolute top-5 right-5 flex justify-center items-center p-1 bg bg-red-600/0 rounded-sm border-2 border-red-700 group hover:bg-red-600/100 hover:border-red-700'>

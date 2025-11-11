@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 import RoomCard from '../components/roomCard';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import webSocketService from '../services/websocketService';
 import { RefreshCw, SquarePlus, ArrowBigLeftDash } from 'lucide-react';
+import CustomToaster from '../components/customToaster';
 
 function FindRooms() {
   const navigate = useNavigate();
@@ -125,27 +126,10 @@ function FindRooms() {
   }
 
   return (
-    <div className="relative min-h-screen bg-russianViolet shadow-padrao w-dvw flex justify-start flex-col gap-20 items-center px-3 
+    <div className="relative min-h-screen bg-russianViolet  shadow-padrao w-dvw flex justify-start flex-col gap-20 items-center px-3 
     lg:py-28 lg:px-18 lg:gap-10 lg:w-[1140px]">
-
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          success: {
-            style: {
-              fontFamily: '"Poppins", sans-serif',
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#5649B6',
-              background: 'white',
-            },
-            iconTheme: {
-              primary: '#5649B6',
-              secondary: 'white',
-            },
-          },
-        }}
-      />
+      <CustomToaster/>
+      
 
       <button onClick={() => navigate('/')}>
         <ArrowBigLeftDash className='absolute top-3 left-3 h-auto w-9 text-pistachio

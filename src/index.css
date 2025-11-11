@@ -40,6 +40,10 @@
   }
 }
 
+html {
+  min-height: 100vh
+}
+
 /* Estilo geral do app fica no body */
 body {
   font-family: var(--font-base);
@@ -58,7 +62,9 @@ body {
   padding: 0;
   background: #975BCF;
   background: linear-gradient(180deg, rgb(151, 91, 207) 1%, rgb(125, 83, 197) 50%, rgb(85, 72, 182) 100%);
+  background-size: cover;
   background-repeat: no-repeat;
+  min-height: 100vh;
 }
 
 button {

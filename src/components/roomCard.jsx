@@ -1,6 +1,7 @@
 // src/components/RoomCard.jsx
 import { Crown, Users, RectangleEllipsis, Copy, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
+import CustomToaster from './customToaster';
 
 function RoomCard({ room, currentUsername, onJoinRoom }) {
   const handleCopyCode = () => {
@@ -9,7 +10,8 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
   };
 
   return (
-    <div className="bg-raisinBlack w-[300px] h-[230px] rounded-md shadow-xl  flex flex-col gap-6 justify-center items-center">
+    <div className="bg-raisinBlack w-[330px] h-[250px] rounded-md shadow-xl px-4 flex flex-col gap-7 justify-center items-center">
+      <CustomToaster/>
       {/* Header do Card */}
       <div className="flex flex-col w-fit gap-1">
         <h3 className="text-[24px] font-semibold text-white">
@@ -21,7 +23,7 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
       </div>
 
       {/* Informações da Sala */}
-      <div className="grid grid-cols-3 grid-rows-1">
+      <div className="flex gap-10">
         {/* Owner */}
         <div className="flex flex-col justify-center items-center">
           <Crown />
