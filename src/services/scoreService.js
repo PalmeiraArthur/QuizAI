@@ -22,7 +22,7 @@ const scoreService = {
      */
     calculateAnswerScore: async (scoreId, userId, answerId, roomId) => {
         if (!scoreId || !userId || !answerId || !roomId) {
-            throwValidationError('Dados incompletos para calcular a pontuação. roomId é obrigatório!');
+            throwValidationError('Dados incompletos para calcular a pontuação. scoreId, userId, answerId e roomId são obrigatórios!');
         }
 
         logAction('Calculando pontuação da resposta', { scoreId, userId, answerId, roomId });

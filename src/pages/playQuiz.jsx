@@ -44,30 +44,19 @@ function PlayQuiz() {
       const questionsArray = Array.from(quizData.questions);
       setQuiz({ ...quizData, questions: questionsArray });
 
-      // tenta criar scoreboard usando roomId da query ou currentRoomId no localStorage
-      const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
-
-      if (effectiveRoomId) {
-        try {
-          const userId = localStorage.getItem('userId');
-          if (userId) {
-            const scoreboard = await scoreService.createScoreboard(userId, effectiveRoomId);
-            setScoreId(scoreboard.id);
-            console.log('Scoreboard criado:', scoreboard);
-          } else {
-            console.warn('Usuário não encontrado no localStorage; scoreboard não será criado.');
-          }
-        } catch (err) {
-          console.error('Erro ao criar scoreboard:', err);
-          // não bloqueia o jogo — permitimos fallback local
-        }
+      // O scoreId já foi criado quando o usuário entrou na sala
+      // Ele está armazenado em localStorage após joinRoom ou createRoom
+      const storedScoreId = localStorage.getItem('scoreId');
+      if (storedScoreId) {
+        setScoreId(storedScoreId);
+        console.log('Score ID carregado do localStorage:', storedScoreId);
       } else {
-        console.log('Nenhuma sala disponível (query ou localStorage). Jogo seguirá sem scoreboard (fallback local).');
+        console.warn('ScoreId não encontrado no localStorage. Jogo seguirá sem scoreboard (fallback local).');
       }
     };
 
     initializeGame();
-  }, [id, roomIdQuery, navigate]);
+  }, [id, navigate]);
 
   const handleSelectAnswer = async (answerId) => {
     if (isAnswerSubmitted) return;
@@ -88,10 +77,12 @@ function PlayQuiz() {
       let result;
       // preferir calcular via backend usando scoreboard
       if (scoreId) {
+        const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
         result = await scoreService.calculateAnswerScore(
           scoreId,
           userId,
-          answerId
+          answerId,
+          effectiveRoomId
         );
       } else {
         // fallback: buscar resposta correta e computar pontos localmente
@@ -155,64 +146,43 @@ function PlayQuiz() {
   // Renomeando de handlePlayAgain para handleFinishAndCleanup
   const handleFinishAndCleanup = async () => {
     try {
-      setLoading(true); // Add loading state
+      setLoading(true);
       const userId = localStorage.getItem('userId');
       
-      // 1. Limpar scoreboard
-      if (scoreId) {
-        try {
-          await scoreService.deleteScoreboard(scoreId);
-          console.log('✅ Scoreboard removido:', scoreId);
-        } catch (err) {
-          console.warn('⚠️ Falha ao deletar scoreboard:', err);
-        }
-      }
-
-      // 2. Limpar sala e quiz associado
+      // 1. Sair da sala
       const currentRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      const storedScoreId = localStorage.getItem('scoreId');
+      
       if (currentRoomId && userId) {
         try {
-          // Buscar dados da sala
           const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
           const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
+          const isOwner = roomObj?.owner?.id === userId;
 
-          // Tentar deletar sala mesmo se não for owner
-          // (backend validará permissão)
-          try {
+          if (isOwner) {
+            // Host: deleta a sala (que deleta todos os scores automaticamente)
             await roomService.deleteRoom(currentRoomId, userId);
-            console.log('✅ Sala removida:', currentRoomId);
-          } catch (err) {
-            console.warn('⚠️ Falha ao deletar sala:', err);
-            // Se falhou por não ser owner, tentar buscar sala do owner
-            if (err?.status === 403 || err?.status === 404) {
+            console.log('✅ Sala deletada pelo owner:', currentRoomId);
+            
+            // Limpar quiz também
+            if (roomObj?.quizId) {
               try {
-                const ownerRoom = await roomService.getRoomByOwner(userId);
-                if (ownerRoom?.id) {
-                  await roomService.deleteRoom(ownerRoom.id, userId);
-                  console.log('✅ Sala do owner removida:', ownerRoom.id);
-                }
-              } catch (ownerErr) {
-                console.warn('⚠️ Falha ao buscar/deletar sala do owner:', ownerErr);
+                await quizService.deleteQuiz(roomObj.quizId);
+                localStorage.removeItem(`quiz_${roomObj.quizId}`);
+                console.log('✅ Quiz removido:', roomObj.quizId);
+              } catch (err) {
+                console.warn('⚠️ Falha ao deletar quiz:', err);
               }
             }
-          }
-
-          // Limpar localStorage
-          localStorage.removeItem(`room_${currentRoomId}`);
-          localStorage.removeItem('currentRoomId');
-
-          // Se era owner, limpar quiz também
-          if (roomObj?.ownerId === userId && roomObj?.quizId) {
-            try {
-              await quizService.deleteQuiz(roomObj.quizId);
-              localStorage.removeItem(`quiz_${roomObj.quizId}`);
-              console.log('✅ Quiz removido:', roomObj.quizId);
-            } catch (err) {
-              console.warn('⚠️ Falha ao deletar quiz:', err);
+          } else {
+            // Player normal: sai da sala (deleta seu score)
+            if (storedScoreId) {
+              await roomService.exitRoom(storedScoreId);
+              console.log('✅ Saiu da sala:', currentRoomId);
             }
           }
         } catch (err) {
-          console.warn('⚠️ Falha ao limpar sala/quiz:', err);
+          console.warn('⚠️ Falha ao sair/deletar sala:', err);
         }
       }
 
@@ -220,6 +190,13 @@ function PlayQuiz() {
       console.error('❌ Erro durante cleanup:', err);
     } finally {
       setLoading(false);
+      
+      // Limpar localStorage
+      localStorage.removeItem('currentRoomId');
+      localStorage.removeItem('scoreId');
+      if (id) {
+        localStorage.removeItem(`quiz_${id}`);
+      }
       
       // Reset do estado local
       setCurrentQuestionIndex(0);
@@ -415,7 +392,7 @@ function PlayQuiz() {
                     key={answer.id}
                     onClick={() => handleSelectAnswer(answer.id)}
                     disabled={isAnswerSubmitted}
-                    className={`font-semibold w-[322px] h-[165px] ${getFontSize(answer.value)} text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button
+                    className={`font-semibold w-[322px] h-[165px] ${getFontSize(answer.value)} text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button 
                       ${cutClass}
                       ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}`
                     }

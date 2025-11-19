@@ -102,8 +102,9 @@ function CreateQuiz() {
                     await roomService.updateRoom(attachedRoomId, payload);
 
                     // Atualizar localStorage da sala
-                    const updated = { ...existingRoom, quizId: quiz.id };
+                    const updated = { ...existingRoom, quizId: quiz.id, topic: quiz.topic };
                     localStorage.setItem(`room_${attachedRoomId}`, JSON.stringify(updated));
+                    console.log('✅ Topic do quiz salvo:', quiz.topic);
 
                     navigate(`/sala/${attachedRoomId}`);
                     return;
@@ -119,6 +120,13 @@ function CreateQuiz() {
             await roomService.updateRoom(room.id, { ownerId: userId, isPublic: true, maxNumberOfPlayers: room.maxNumberOfPlayers || 10, quizId: quiz.id });
 
             localStorage.setItem('currentRoomId', room.id);
+            
+            // Salvar scoreId do owner
+            if (room.ownerScoreboard?.id) {
+                localStorage.setItem('scoreId', room.ownerScoreboard.id);
+                console.log('✅ scoreId do owner salvo:', room.ownerScoreboard.id);
+            }
+            
             const roomToStore = { ...room };
             if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
                 roomToStore.scoreboard = [roomToStore.scoreboard];
@@ -126,6 +134,13 @@ function CreateQuiz() {
                 roomToStore.scoreboard = [];
             }
             localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
+            
+            // Salvar topic do quiz para exibição no room
+            if (quiz.topic) {
+                roomToStore.topic = quiz.topic;
+                localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
+                console.log('✅ Topic do quiz salvo:', quiz.topic);
+            }
 
             navigate(`/sala/${room.id}`);
 

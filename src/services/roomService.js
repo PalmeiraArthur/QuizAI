@@ -7,7 +7,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic,
-            maxNumberOfPlayers: maxNumberOfPlayers,
+            maxNumberOfPlayersInRoom: maxNumberOfPlayers,
         };
 
         try {
@@ -38,7 +38,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic: updateData.isPublic,
-            maxNumberOfPlayers: updateData.maxNumberOfPlayers,
+            maxNumberOfPlayersInRoom: updateData.maxNumberOfPlayers,
             quizId: updateData.quizId
         };
 

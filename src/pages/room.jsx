@@ -89,6 +89,13 @@ function Room() {
     });
   }, [roomId]);
 
+  const handleGameStart = useCallback((gameStartPayload) => {
+    console.log('[GAME START WS] 🎮 Jogo iniciado! Navegando...', gameStartPayload);
+    const quizId = gameStartPayload.quizId;
+    if (quizId) {
+      window.location.href = `/Jogar-quiz/${quizId}?roomId=${roomId}`;
+    }
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -127,6 +134,7 @@ function Room() {
 
         webSocketService.subscribeToPlayerJoins(roomId, handlePlayerJoin);
         webSocketService.subscribeToPlayerExits(roomId, handlePlayerExit);
+        webSocketService.subscribeToGameStart(roomId, handleGameStart);
 
       } catch (error) {
         console.error("❌ Erro fatal ao carregar a sala:", error);
@@ -143,7 +151,7 @@ function Room() {
       // Limpeza das inscrições ao desmontar o componente
       webSocketService.cleanupSubscriptions(roomId);
     };
-  }, [roomId, navigate, handlePlayerJoin, handlePlayerExit]);
+  }, [roomId, navigate, handlePlayerJoin, handlePlayerExit, handleGameStart]);
 
   const isHost = room ? String(userId) === String(room.owner?.id) : false;
 
@@ -292,6 +300,19 @@ function Room() {
           {/* Coluna Central - Configurações e Quiz */}
           <div className="flex flex-col gap-6 w-[800px]">
 
+            {/* Exibição do Tópico do Quiz */}
+            {room.quizId && (
+              <div className="bg-gradient-to-r from-plumpPurple/30 to-pistachio/20 rounded-lg px-8 py-6 border border-pistachio/40 shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📚</div>
+                  <div>
+                    <p className="text-gray-300 text-sm uppercase tracking-wider">Quiz Selecionado</p>
+                    <p className="text-white text-2xl font-bold">{room.topic || 'Quiz sem tópico'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Configurações da Sala */}
             <div className="bg-darkGunmetal rounded-md px-12 py-4 flex flex-col gap-4">
 
@@ -381,7 +402,7 @@ function Room() {
                     </button>
 
                     <button
-                      onClick={() => window.location.href = `/criar-quiz?roomId=${room.id}`}
+                      onClick={() => window.location.href = `/Criar-quiz?roomId=${room.id}`}
                       disabled={loading}
                       className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-4 rounded-lg hover:bg-green-500 disabled:opacity-50 transition text-lg"
                     >
@@ -391,7 +412,7 @@ function Room() {
 
                   <button
                     onClick={() => {
-                      // Iniciar o quiz — navegamos para /play-quiz/:id com ?roomId
+                      // Iniciar o quiz — navegamos para /Jogar-quiz/:id com ?roomId
                       const quizId = room.quizId || room.quiz?.id || localStorage.getItem('lastCreatedQuizId');
                       if (!quizId) {
                         alert('Nenhum quiz vinculado à sala. Crie um quiz primeiro.');
@@ -407,8 +428,12 @@ function Room() {
                         return;
                       }
 
+                      // 🎮 Notificar todos os players no WebSocket que o jogo começou
+                      console.log('[GAME START] 🎮 Host iniciando jogo. Broadcasting para todos os players...');
+                      webSocketService.sendGameStart(room.id, quizId);
+
                       // Navegar para a página de jogo com o roomId como query
-                      window.location.href = `/play-quiz/${quizId}?roomId=${room.id}`;
+                      window.location.href = `/Jogar-quiz/${quizId}?roomId=${room.id}`;
                     }}
                     disabled={loading}
                     className="w-full bg-silver text-white font-semibold text-[24px] py-3 px-8 rounded-lg hover:bg-white hover:text-silver disabled:opacity-50 transition"

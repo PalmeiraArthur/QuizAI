@@ -153,6 +153,31 @@ class WebsocketService {
         }
     }
 
+    /**
+     * Notifica todos os players que o host iniciou o jogo
+     * @param {string} roomId - ID da sala
+     * @param {string} quizId - ID do quiz que será jogado
+     */
+    sendGameStart(roomId, quizId) {
+        const destination = `/quizAI/sendGameStart/${roomId}`;
+        const payload = { quizId };
+
+        if (!this.client || !this.connected) {
+            console.error(`[WEBSOCKET] ❌ Não conectado. Não foi possível enviar para ${destination}`);
+            return;
+        }
+
+        try {
+            this.client.publish({
+                destination,
+                body: JSON.stringify(payload),
+            });
+            console.log(`[WEBSOCKET] 📤 Iniciando jogo para todos os players`, payload);
+        } catch (error) {
+            console.error(`[WEBSOCKET] ❌ Erro ao enviar game start:`, error);
+        }
+    }
+
     // -------------------------------------
     // --- MÉTODOS DE ESCUTA (SUBSCRIBE) ---
     // -------------------------------------
@@ -259,6 +284,34 @@ class WebsocketService {
             this.subscriptions.delete(exitKey);
             console.log(`[WEBSOCKET] 🗑️ Inscrição cancelada para /topic/rooms/${roomId}/exit`);
         }
+    }
+
+    subscribeToGameStart(roomId, onGameStart) {
+        const subscriptionKey = `game-start-${roomId}`;
+        const destination = `/topic/rooms/${roomId}/game-start`;
+
+        if (!this.client || !this.client.connected) {
+            console.error(`[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`);
+            return;
+        }
+
+        if (this.subscriptions.has(subscriptionKey)) {
+            console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+            return;
+        }
+
+        const subscription = this.client.subscribe(destination, (message) => {
+            try {
+                const data = JSON.parse(message.body);
+                console.log(`[WEBSOCKET] 📨 Jogo iniciado! Navegando para quiz...`, data);
+                onGameStart(data);
+            } catch (error) {
+                console.error(`[WEBSOCKET] ❌ Erro ao processar game start:`, error);
+            }
+        });
+
+        this.subscriptions.set(subscriptionKey, subscription);
+        console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
     }
 }
 
