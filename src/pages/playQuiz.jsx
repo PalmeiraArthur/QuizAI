@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import scoreService from '../services/scoreService';
 import questionService from '../services/questionService';
-import quizService from '../services/quizService';
-import roomService from '../services/roomService';
+// quizService and roomService removed from this page; scoring handled via scoreService and websocket
+import webSocketService from '../services/websocketService';
 import Navbar from '../components/navbar';
 import clickSound from '../assets/sounds/click.mp3'
 
@@ -58,14 +58,103 @@ function PlayQuiz() {
     initializeGame();
   }, [id, navigate]);
 
+
+  // WebSocket: connect and subscribe to room scoreboard updates, joins and exits
+  useEffect(() => {
+    const setupWebsocket = async () => {
+      const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      if (!roomId) return;
+
+      // inicializar scoreboard a partir do localStorage
+      const roomStr = localStorage.getItem(`room_${roomId}`);
+      if (roomStr) {
+        try {
+          const roomObj = JSON.parse(roomStr);
+          setScoreboardState(roomObj.scoreboard || []);
+        } catch (err) {
+          console.warn('Falha ao parsear room do localStorage para scoreboard', err);
+        }
+      }
+
+      try {
+        await webSocketService.connect();
+
+
+        webSocketService.subscribeToScoreUpdates(roomId, (update) => {
+          // update => { scoreId, player, pointsEarned }
+          console.log('[WS] Score update recebido:', update);
+          setScore(prev => prev + (update.pointsEarned || 0));
+
+          const updateId = update.scoreId || update.id;
+
+          // Atualizar scoreboard local
+          setScoreboardState((prev) => {
+            const exists = prev.some(s => s.id === updateId);
+            let next;
+            if (exists) {
+              next = prev.map(s => s.id === updateId ? { ...s, score: (s.score || 0) + (update.pointsEarned || 0) } : s);
+            } else {
+              next = [...prev, { id: updateId, score: update.pointsEarned || 0, player: update.player }];
+            }
+
+            // persist
+            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
+            if (room && room.id) {
+              room.scoreboard = next;
+              localStorage.setItem(`room_${roomId}`, JSON.stringify(room));
+            }
+
+            return next;
+          });
+        });
+
+        webSocketService.subscribeToPlayerJoins(roomId, (join) => {
+          console.log('[WS] Player joined during game:', join);
+          setScoreboardState(prev => {
+            if (prev.some(s => s.id === (join.scoreId || join.id))) return prev;
+            const normalized = { id: join.scoreId || join.id, score: join.score || 0, player: join.player };
+            const next = [...prev, normalized];
+            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
+            if (room && room.id) { room.scoreboard = next; localStorage.setItem(`room_${roomId}`, JSON.stringify(room)); }
+            return next;
+          });
+        });
+
+        webSocketService.subscribeToPlayerExits(roomId, (exit) => {
+          console.log('[WS] Player exit during game:', exit);
+          setScoreboardState(prev => {
+            const idToRemove = exit.scoreId || exit.id;
+            const next = prev.filter(s => s.id !== idToRemove);
+            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
+            if (room && room.id) { room.scoreboard = next; localStorage.setItem(`room_${roomId}`, JSON.stringify(room)); }
+            return next;
+          });
+        });
+
+      } catch (err) {
+        console.warn('Falha ao conectar/inscrever websocket em PlayQuiz', err);
+      }
+    };
+
+    setupWebsocket();
+
+    return () => {
+      const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      if (roomId) webSocketService.cleanupSubscriptions(roomId);
+    };
+  }, [roomIdQuery]);
+
+  // local scoreboard state
+  const [scoreboardState, setScoreboardState] = useState([]);
+
   const handleSelectAnswer = async (answerId) => {
     if (isAnswerSubmitted) return;
 
     // 🔊 tocar som de clique
     try {
       clickSoundRef.current.currentTime = 0;
-      clickSoundRef.current.play().catch(()=>{});
-    } catch {}
+      clickSoundRef.current.play().catch((e) => { console.warn('Falha ao reproduzir som de clique', e); });
+    } catch (e) { console.warn('Erro ao tentar tocar som', e); }
 
     setIsAnswerSubmitted(true);
     setSelectedAnswer(answerId);
@@ -93,6 +182,17 @@ function PlayQuiz() {
 
       const points = result.pointsEarned || 0;
       console.log('Pontos ganhos nesta rodada:', points);
+
+      // Notify other players via websocket so backend can broadcast updated scoreboard
+      try {
+        const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+        if (scoreId && effectiveRoomId) {
+          await webSocketService.connect();
+          webSocketService.sendPlayerScore(effectiveRoomId, scoreId, points);
+        }
+      } catch (wsErr) {
+        console.warn('Falha ao notificar pontuação via websocket:', wsErr);
+      }
 
       // Se errou, buscar a resposta correta (se ainda não obtivemos)
       if (points === 0 && !correctAnswer) {
@@ -147,69 +247,36 @@ function PlayQuiz() {
   const handleFinishAndCleanup = async () => {
     try {
       setLoading(true);
-      const userId = localStorage.getItem('userId');
-      
-      // 1. Sair da sala
+
+      // We don't delete the room or the player's score here. Instead we
+      // return the user to the lobby so they can review the scoreboard.
       const currentRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
-      const storedScoreId = localStorage.getItem('scoreId');
-      
-      if (currentRoomId && userId) {
-        try {
-          const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
-          const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
-          const isOwner = roomObj?.owner?.id === userId;
 
-          if (isOwner) {
-            // Host: deleta a sala (que deleta todos os scores automaticamente)
-            await roomService.deleteRoom(currentRoomId, userId);
-            console.log('✅ Sala deletada pelo owner:', currentRoomId);
-            
-            // Limpar quiz também
-            if (roomObj?.quizId) {
-              try {
-                await quizService.deleteQuiz(roomObj.quizId);
-                localStorage.removeItem(`quiz_${roomObj.quizId}`);
-                console.log('✅ Quiz removido:', roomObj.quizId);
-              } catch (err) {
-                console.warn('⚠️ Falha ao deletar quiz:', err);
-              }
-            }
-          } else {
-            // Player normal: sai da sala (deleta seu score)
-            if (storedScoreId) {
-              await roomService.exitRoom(storedScoreId);
-              console.log('✅ Saiu da sala:', currentRoomId);
-            }
-          }
-        } catch (err) {
-          console.warn('⚠️ Falha ao sair/deletar sala:', err);
-        }
-      }
-
-    } catch (err) {
-      console.error('❌ Erro durante cleanup:', err);
-    } finally {
-      setLoading(false);
-      
-      // Limpar localStorage
-      localStorage.removeItem('currentRoomId');
-      localStorage.removeItem('scoreId');
+      // Clean up only quiz-specific local data
       if (id) {
         localStorage.removeItem(`quiz_${id}`);
       }
-      
-      // Reset do estado local
+
+      // Reset local UI state
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
       setCorrectAnswer(null);
       setShowResults(false);
-      setScore(0);
       setAnsweredQuestions([]);
       setIsAnswerSubmitted(false);
-      setScoreId(null);
-      
-      // Voltar para home
+
+      // Navigate back to the room lobby if available
+      if (currentRoomId) {
+        navigate(`/sala/${currentRoomId}`);
+      } else {
+        navigate('/');
+      }
+
+    } catch (err) {
+      console.error('❌ Erro durante cleanup:', err);
       navigate('/');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -265,9 +332,9 @@ function PlayQuiz() {
               </h1>
 
               <div className="my-8">
-                <div className="text-6xl font-bold text-pistachio mb-4">
-                  {score} pontos
-                </div>
+                        <div className="text-6xl font-bold text-pistachio mb-4">
+                            {score} pontos
+                          </div>
                 <p className="text-gray-400 text-xl">
                   Você completou {quiz.questions.length} questões
                 </p>
@@ -293,8 +360,9 @@ function PlayQuiz() {
 
               <div className="flex gap-4">
                 <button
-                  onClick={handleFinishAndCleanup}
-                  className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-6 rounded-lg hover:bg-green-500 transition-colors"
+                      onClick={handleFinishAndCleanup}
+                      disabled={loading}
+                      className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-6 rounded-lg hover:bg-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Finalizar e Voltar
                 </button>
@@ -342,6 +410,25 @@ function PlayQuiz() {
               />
             </div>
           </div>
+
+          {/* Live scoreboard */}
+          <aside className="ml-6 w-64">
+            <div className="bg-darkGunmetal rounded-lg p-4">
+              <h4 className="text-white font-semibold mb-2">Scoreboard</h4>
+              {scoreboardState.length === 0 ? (
+                <p className="text-gray-400">Nenhum jogador ativo</p>
+              ) : (
+                <ol className="space-y-2">
+                  {[...scoreboardState].sort((a,b)=> (b.score||0)-(a.score||0)).map((p) => (
+                    <li key={p.id} className="flex justify-between text-white text-sm">
+                      <span>{p.player?.username || 'Jogador'}</span>
+                      <span className="text-pistachio font-bold">{p.score || 0}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </aside>
 
           {/* Questão */}
           <div className="bg-raisinBlack rounded-lg shadow-xl p-14 flex flex-col justify-center items-center gap-8">

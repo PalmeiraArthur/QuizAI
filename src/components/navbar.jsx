@@ -7,7 +7,7 @@ function Navbar() {
     const handleSettingsClick = () => {
         const audio = new Audio('/src/assets/sounds/openSettings.wav');
         audio.play();
-        navigate('/configurações');
+        navigate('/configuracoes');
     };
 
     return (

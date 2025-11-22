@@ -126,8 +126,13 @@ function CreateQuiz() {
                 localStorage.setItem('scoreId', room.ownerScoreboard.id);
                 console.log('✅ scoreId do owner salvo:', room.ownerScoreboard.id);
             }
-            
+
             const roomToStore = { ...room };
+            // Normalize ownerScoreboard -> scoreboard array
+            if (roomToStore.ownerScoreboard) {
+                roomToStore.scoreboard = [roomToStore.ownerScoreboard];
+                delete roomToStore.ownerScoreboard;
+            }
             if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
                 roomToStore.scoreboard = [roomToStore.scoreboard];
             } else if (!roomToStore.scoreboard) {
