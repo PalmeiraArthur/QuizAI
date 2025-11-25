@@ -12,6 +12,8 @@ function Room() {
   const [maxPlayers, setMaxPlayers] = useState(10);
   const [loading, setLoading] = useState(false);
   const [quiz, setQuiz] = useState(null);
+  const [localQuizzes, setLocalQuizzes] = useState([]);
+  const [selectedQuizId, setSelectedQuizId] = useState(null);
   const [currentScoreboard, setCurrentScoreboard] = useState([]);
 
   const userId = localStorage.getItem('userId');
@@ -89,6 +91,13 @@ function Room() {
     });
   }, [roomId]);
 
+  const handleGameStart = useCallback((gameStartPayload) => {
+    console.log('[GAME START WS] 🎮 Jogo iniciado! Navegando...', gameStartPayload);
+    const quizId = gameStartPayload.quizId;
+    if (quizId) {
+      navigate(`/jogar-quiz/${quizId}?roomId=${roomId}`);
+    }
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -127,6 +136,18 @@ function Room() {
 
         webSocketService.subscribeToPlayerJoins(roomId, handlePlayerJoin);
         webSocketService.subscribeToPlayerExits(roomId, handlePlayerExit);
+        webSocketService.subscribeToGameStart(roomId, handleGameStart);
+
+        // carregar quizzes locais salvos (quiz_{id}) para o host poder selecionar
+        const quizzes = Object.keys(localStorage)
+          .filter(k => k.startsWith('quiz_'))
+          .map(k => {
+            try { return JSON.parse(localStorage.getItem(k)); } catch { return null; }
+          })
+          .filter(Boolean);
+
+        setLocalQuizzes(quizzes);
+        if (quizzes.length > 0) setSelectedQuizId(quizzes[0].id);
 
       } catch (error) {
         console.error("❌ Erro fatal ao carregar a sala:", error);
@@ -143,7 +164,7 @@ function Room() {
       // Limpeza das inscrições ao desmontar o componente
       webSocketService.cleanupSubscriptions(roomId);
     };
-  }, [roomId, navigate, handlePlayerJoin, handlePlayerExit]);
+  }, [roomId, navigate, handlePlayerJoin, handlePlayerExit, handleGameStart]);
 
   const isHost = room ? String(userId) === String(room.owner?.id) : false;
 
@@ -167,6 +188,45 @@ function Room() {
     };
     setRoom(updatedRoom);
     localStorage.setItem(`room_${room.id}`, JSON.stringify(updatedRoom));
+  };
+
+  // Anexar um quiz local à sala (SOMENTE HOST)
+  const handleAttachQuiz = async () => {
+    if (!isHost || !room) return;
+    if (!selectedQuizId) {
+      alert('Selecione um quiz antes de anexar.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await roomService.updateRoom(room.id, {
+        ownerId: userId,
+        isPublic: isPublic,
+        maxNumberOfPlayers: maxPlayers,
+        quizId: selectedQuizId
+      });
+
+      // Atualizar localStorage da sala com o quiz selecionado
+      const selectedQuiz = JSON.parse(localStorage.getItem(`quiz_${selectedQuizId}`) || '{}');
+
+      const updatedRoom = {
+        ...room,
+        quizId: selectedQuizId,
+        topic: selectedQuiz.topic || room.topic,
+        scoreboard: currentScoreboard
+      };
+
+      setRoom(updatedRoom);
+      localStorage.setItem(`room_${room.id}`, JSON.stringify(updatedRoom));
+
+    } catch (err) {
+      console.error('Erro ao anexar quiz à sala:', err);
+      alert('Não foi possível anexar o quiz. Veja o console.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Sair do lobby
@@ -292,6 +352,19 @@ function Room() {
           {/* Coluna Central - Configurações e Quiz */}
           <div className="flex flex-col gap-6 w-[800px]">
 
+            {/* Exibição do Tópico do Quiz */}
+            {room.quizId && (
+              <div className="bg-gradient-to-r from-plumpPurple/30 to-pistachio/20 rounded-lg px-8 py-6 border border-pistachio/40 shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📚</div>
+                  <div>
+                    <p className="text-gray-300 text-sm uppercase tracking-wider">Quiz Selecionado</p>
+                    <p className="text-white text-2xl font-bold">{room.topic || 'Quiz sem tópico'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Configurações da Sala */}
             <div className="bg-darkGunmetal rounded-md px-12 py-4 flex flex-col gap-4">
 
@@ -381,7 +454,7 @@ function Room() {
                     </button>
 
                     <button
-                      onClick={() => window.location.href = `/criar-quiz?roomId=${room.id}`}
+                      onClick={() => navigate(`/criar-quiz?roomId=${room.id}`)}
                       disabled={loading}
                       className="flex-1 bg-pistachio text-raisinBlack font-bold py-3 px-4 rounded-lg hover:bg-green-500 disabled:opacity-50 transition text-lg"
                     >
@@ -389,9 +462,32 @@ function Room() {
                     </button>
                   </div>
 
+                  {/* Se o host tiver quizzes locais, mostrar seletor para anexar */}
+                  {isHost && localQuizzes.length > 0 && (
+                    <div className="mt-3 flex gap-3 items-center">
+                      <select
+                        value={selectedQuizId || ''}
+                        onChange={(e) => setSelectedQuizId(e.target.value)}
+                        className="flex-1 bg-darkGunmetal text-white px-3 py-2 rounded-md"
+                      >
+                        {localQuizzes.map(q => (
+                          <option key={q.id} value={q.id}>{q.topic} ({q.questions?.length || 0}q)</option>
+                        ))}
+                      </select>
+
+                      <button
+                        onClick={handleAttachQuiz}
+                        disabled={loading}
+                        className="bg-pistachio text-raisinBlack px-4 py-2 rounded-md font-semibold disabled:opacity-50"
+                      >
+                        Anexar Quiz
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => {
-                      // Iniciar o quiz — navegamos para /play-quiz/:id com ?roomId
+                      // Iniciar o quiz — navegamos para /Jogar-quiz/:id com ?roomId
                       const quizId = room.quizId || room.quiz?.id || localStorage.getItem('lastCreatedQuizId');
                       if (!quizId) {
                         alert('Nenhum quiz vinculado à sala. Crie um quiz primeiro.');
@@ -407,8 +503,12 @@ function Room() {
                         return;
                       }
 
+                      // 🎮 Notificar todos os players no WebSocket que o jogo começou
+                      console.log('[GAME START] 🎮 Host iniciando jogo. Broadcasting para todos os players...');
+                      webSocketService.sendGameStart(room.id, quizId);
+
                       // Navegar para a página de jogo com o roomId como query
-                      window.location.href = `/play-quiz/${quizId}?roomId=${room.id}`;
+                      navigate(`/jogar-quiz/${quizId}?roomId=${room.id}`);
                     }}
                     disabled={loading}
                     className="w-full bg-silver text-white font-semibold text-[24px] py-3 px-8 rounded-lg hover:bg-white hover:text-silver disabled:opacity-50 transition"

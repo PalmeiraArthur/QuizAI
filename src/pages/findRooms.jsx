@@ -191,7 +191,7 @@ function FindRooms() {
       {/* Footer */}
       <footer className='flex gap-10'>
         <button
-          onClick={loadRooms}
+          onClick={() => navigate('/criar-sala')}
           className="flex justify-center items-center gap-2 px-6 py-3 text-xl font-semibold bg-pistachio text-white rounded-md hover:bg-white hover:text-pistachio"
         >
           <SquarePlus className='stroke-3' />

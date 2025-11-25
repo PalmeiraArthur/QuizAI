@@ -102,8 +102,9 @@ function CreateQuiz() {
                     await roomService.updateRoom(attachedRoomId, payload);
 
                     // Atualizar localStorage da sala
-                    const updated = { ...existingRoom, quizId: quiz.id };
+                    const updated = { ...existingRoom, quizId: quiz.id, topic: quiz.topic };
                     localStorage.setItem(`room_${attachedRoomId}`, JSON.stringify(updated));
+                    console.log('✅ Topic do quiz salvo:', quiz.topic);
 
                     navigate(`/sala/${attachedRoomId}`);
                     return;
@@ -119,13 +120,32 @@ function CreateQuiz() {
             await roomService.updateRoom(room.id, { ownerId: userId, isPublic: true, maxNumberOfPlayers: room.maxNumberOfPlayers || 10, quizId: quiz.id });
 
             localStorage.setItem('currentRoomId', room.id);
+            
+            // Salvar scoreId do owner
+            if (room.ownerScoreboard?.id) {
+                localStorage.setItem('scoreId', room.ownerScoreboard.id);
+                console.log('✅ scoreId do owner salvo:', room.ownerScoreboard.id);
+            }
+
             const roomToStore = { ...room };
+            // Normalize ownerScoreboard -> scoreboard array
+            if (roomToStore.ownerScoreboard) {
+                roomToStore.scoreboard = [roomToStore.ownerScoreboard];
+                delete roomToStore.ownerScoreboard;
+            }
             if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
                 roomToStore.scoreboard = [roomToStore.scoreboard];
             } else if (!roomToStore.scoreboard) {
                 roomToStore.scoreboard = [];
             }
             localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
+            
+            // Salvar topic do quiz para exibição no room
+            if (quiz.topic) {
+                roomToStore.topic = quiz.topic;
+                localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
+                console.log('✅ Topic do quiz salvo:', quiz.topic);
+            }
 
             navigate(`/sala/${room.id}`);
 
@@ -141,19 +161,17 @@ function CreateQuiz() {
     const handleCancel = () => navigate('/');
 
     return (
-        <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
+        <div className="min-h-screen bg-russianViolet bg-gradient-padrao flex justify-center w-[1140px] shadow-padrao">
             <main className="container mx-auto px-4 py-8 ">
                 <div className="max-w-2xl mx-auto">
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-white mb-2">
                             Criar Quiz
                         </h1>
-                        <p className="text-gray-400">
-                            Configure o quiz que será jogado na sua sala.
-                        </p>
+           
                     </div>
 
-                    <div className="bg-raisinBlack rounded-lg shadow-xl p-8">
+                    <div className="bg-russianViolet rounded-md shadow-padrao p-8">
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
                                 <label className="block text-white font-semibold mb-2">
@@ -247,16 +265,17 @@ function CreateQuiz() {
                             <button
                                 type="submit"
                                 disabled={loading || !formData.topic.trim()}
-                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
+                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-raisinBlack hover:text-pistachio transition-colorsdisabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
                             >
-                                {loading ? 'Gerando Quiz com IA... (pode demorar até 1 min)' : '🤖 Gerar Quiz com IA'}
+                                {loading ? 'Gerando Quiz com IA... (pode demorar até 1 min)' : 'Gerar Quiz com IA'}
                             </button>
 
                             <button
                                 type="button"
                                 onClick={handleCancel}
                                 disabled={loading}
-                                className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                                className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg disabled:opacity-50 transition-colors
+                                hover:bg-white hover:text-red-800"
                             >
                                 ← Cancelar
                             </button>

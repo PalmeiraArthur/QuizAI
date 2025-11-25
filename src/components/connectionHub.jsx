@@ -1,65 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from "react-router-dom";
-import roomService from '../services/roomService';
-import webSocketService from '../services/websocketService';
+// roomService and webSocketService not used here; selection flow handled in /criar-sala
 
 function ConnectionHub() {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+    const [loading, _setLoading] = useState(false);
 
-    const handleCreateRoom = async () => {
-
-        //Pega o id do usuário no localStorage para definir como owner da sala
-        const userId = localStorage.getItem('userId');
-        console.log("FRONTEND: pegando o id do usuário:", userId);
-
-        setLoading(true);
-
-        try {
-            const newRoom = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
-            console.log("FRONTEND: Dados completos da nova sala (newRoom):", newRoom); '    '
-
-            //Salva no localStorage
-            localStorage.setItem('currentRoomId', newRoom.id);
-            console.log("FRONTEND: ID da sala salva no localStorage:", newRoom.id);
-
-            // Garantir que `scoreboard` seja um array (frontend espera lista)
-            let roomToStore = { ...newRoom };
-            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
-                // RoomCreationResponseDTO.scoreboard is a PlayerScoreDTO (single item)
-                roomToStore.scoreboard = [roomToStore.scoreboard];
-            } else if (!roomToStore.scoreboard) {
-                roomToStore.scoreboard = [];
-            }
-
-            localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomToStore));
-            console.log("FRONTEND: Dados da sala salvos no localStorage.");
-
-            //Se conecta no WebSocket
-            await webSocketService.connect(); 
-            console.log("FRONTEND: Se conectou com o websocket.");
-
-            // Envia evento de Player Join com scoreId se disponível
-            const scoreId = roomToStore.scoreboard[0]?.id || localStorage.getItem('scoreId');
-            if (scoreId) {
-                localStorage.setItem('scoreId', scoreId);
-                webSocketService.sendPlayerJoin(newRoom.id, scoreId);
-                console.log("FRONTEND: Evento Player Join enviado com scoreId.");
-            } else {
-                webSocketService.sendPlayerJoin(newRoom.id);
-                console.log("FRONTEND: Evento Player Join enviado (sem scoreId).");
-            }
-
-            //Redirecionar
-            navigate(`/sala/${newRoom.id}`);
-            console.log("FRONTEND: Navegando para a sala criada.");
-
-        } catch (error) {
-            console.error("Erro ao criar sala.", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    
     
     return (
         <div className="flex justify-center items-center gap-2 bg-russianViolet p-[20px] w-[380px] h-[75px] rounded-[50px] mt-[30px] font-semibold text-[16px]
@@ -75,7 +22,7 @@ function ConnectionHub() {
             </button>
 
             <button
-                onClick={handleCreateRoom}
+                onClick={() => navigate('/criar-sala')}
                 disabled={loading}
                 className="bg-slateBlue rounded-[50px] w-[120px] h-[50px] hover:bg-white hover:text-slateBlue cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                 md:w-[180px] md:h-[61px]"
@@ -93,7 +40,7 @@ function ConnectionHub() {
             </button>
 
             <button
-                onClick={() => navigate('/Encontrar-salas')}
+                onClick={() => navigate('/encontrar-salas')}
                 disabled={loading}
                 className="bg-slateBlue rounded-[50px] w-[120px] h-[50px] hover:bg-white hover:text-slateBlue cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                 md:w-[180px] md:h-[61px]"

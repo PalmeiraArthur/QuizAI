@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
 import BackgroundPattern from '../components/backgroundPattern';
+import playSound, { setMasterVolume, getMasterVolume } from '../services/soundService';
 import { X } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal'; // Importa o modal
 
@@ -9,6 +10,7 @@ function Settings() {
     const navigate = useNavigate();
     const username = localStorage.getItem('username');
     const [showLogoutModal, setShowLogoutModal] = useState(false); // Estado do modal
+    const [volumePercent, setVolumePercent] = useState(100);
 
     const handleLogout = () => {
         setShowLogoutModal(true); // Abre o modal
@@ -20,9 +22,39 @@ function Settings() {
     };
 
     const handleCloseSettings = () => { 
-        const closeAudio = new Audio('/src/assets/sounds/closeSettings.wav');
-        closeAudio.play();
+        playSound('/src/assets/sounds/closeSettings.wav', { volume: 0.6 });
         navigate('/');
+    };
+
+    useEffect(() => {
+        // load saved volume (0-1) from localStorage or fallback to service
+        try {
+            const saved = localStorage.getItem('soundVolume');
+            if (saved !== null) {
+                const v = Number(saved);
+                const clamped = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : getMasterVolume();
+                setMasterVolume(clamped);
+                setVolumePercent(Math.round(clamped * 100));
+            } else {
+                const mv = getMasterVolume();
+                setVolumePercent(Math.round(mv * 100));
+            }
+        } catch (err) {
+            console.warn('Settings: failed to read soundVolume', err);
+        }
+    }, []);
+
+    const handleVolumeChange = (percent) => {
+        const clamped = Math.max(0, Math.min(100, Number(percent)));
+        setVolumePercent(clamped);
+        const v = clamped / 100;
+        setMasterVolume(v);
+        try { localStorage.setItem('soundVolume', String(v)); } catch (err) { console.warn('Settings: failed to save soundVolume', err); }
+    };
+
+    const handlePreviewSound = () => {
+        // play a short click/ping at full base volume (masterVolume will be applied)
+        playSound('/src/assets/sounds/click.mp3', { volume: 1 });
     };
 
     return (
@@ -41,6 +73,27 @@ function Settings() {
                     <h1 className='text-2xl font-semibold'>
                         Configurações
                     </h1>
+
+                    {/* Volume controller */}
+                    <div className='w-full max-w-md mt-6'>
+                        <label className='text-white font-medium mb-2 block'>Volume dos sons: <span className='text-pistachio font-bold'>{volumePercent}%</span></label>
+                        <div className='flex items-center gap-3'>
+                            <input
+                                type='range'
+                                min='0'
+                                max='100'
+                                value={volumePercent}
+                                onChange={(e) => handleVolumeChange(e.target.value)}
+                                className='w-full'
+                            />
+                            <button
+                                onClick={handlePreviewSound}
+                                className='px-3 py-1 bg-pistachio text-raisinBlack rounded-md font-semibold hover:opacity-90'
+                            >
+                                Testar
+                            </button>
+                        </div>
+                    </div>
 
                     <button
                         onClick={handleLogout}

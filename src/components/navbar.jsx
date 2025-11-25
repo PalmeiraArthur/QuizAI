@@ -1,13 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import playSound from '../services/soundService';
 
 function Navbar() {
     const navigate = useNavigate();
     const username = localStorage.getItem('username');
 
     const handleSettingsClick = () => {
-        const audio = new Audio('/src/assets/sounds/openSettings.wav');
-        audio.play();
-        navigate('/configurações');
+        playSound('/src/assets/sounds/openSettings.wav', { volume: 0.6 });
+        navigate('/configuracoes');
     };
 
     return (
