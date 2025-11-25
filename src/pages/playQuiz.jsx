@@ -1,5 +1,5 @@
 // src/pages/playQuiz.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import scoreService from '../services/scoreService';
 import questionService from '../services/questionService';
@@ -7,6 +7,7 @@ import questionService from '../services/questionService';
 import webSocketService from '../services/websocketService';
 import Navbar from '../components/navbar';
 import clickSound from '../assets/sounds/click.mp3'
+import playSound from '../services/soundService';
 
 
 function PlayQuiz() {
@@ -27,7 +28,7 @@ function PlayQuiz() {
   const [showPointsAnimation, setShowPointsAnimation] = useState(false);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [loading, setLoading] = useState(false);
-  const clickSoundRef = useRef(new Audio(clickSound));
+  // use centralized sound player
 
 
   useEffect(() => {
@@ -150,10 +151,9 @@ function PlayQuiz() {
   const handleSelectAnswer = async (answerId) => {
     if (isAnswerSubmitted) return;
 
-    // 🔊 tocar som de clique
+    // 🔊 tocar som de clique via soundService
     try {
-      clickSoundRef.current.currentTime = 0;
-      clickSoundRef.current.play().catch((e) => { console.warn('Falha ao reproduzir som de clique', e); });
+      playSound(clickSound, { volume: 0.6 });
     } catch (e) { console.warn('Erro ao tentar tocar som', e); }
 
     setIsAnswerSubmitted(true);
@@ -409,7 +409,7 @@ function PlayQuiz() {
           </div>
 
           {/* Live scoreboard */}
-          <aside className="ml-6 w-64">
+          {/* <aside className="ml-6 w-64">
             <div className="bg-darkGunmetal rounded-lg p-4">
               <h4 className="text-white font-semibold mb-2">Scoreboard</h4>
               {scoreboardState.length === 0 ? (
@@ -425,7 +425,7 @@ function PlayQuiz() {
                 </ol>
               )}
             </div>
-          </aside>
+          </aside> */}
 
           {/* Questão */}
           <div className="bg-raisinBlack rounded-lg shadow-xl p-14 flex flex-col justify-center items-center gap-8">
