@@ -323,7 +323,6 @@ function PlayQuiz() {
   if (showResults) {
     return (
       <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
-        <Navbar />
         <main className="container mx-auto px-4 py-8 mt-[100px] md:mt-[100px]">
           <div className="max-w-2xl mx-auto">
             <div className="bg-raisinBlack rounded-lg shadow-xl p-8 text-center">
@@ -376,9 +375,7 @@ function PlayQuiz() {
 
   return (
     <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
-      <Navbar />
-
-      <main className="container mx-auto mt-[100px] md:mt-[100px]">
+      <main className="container mx-auto mt-[100px] md:mt-[60px]">
         <div className="max-w-5xl mx-auto">
 
           {/* Header com progresso e pontuação */}
