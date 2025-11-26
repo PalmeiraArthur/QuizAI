@@ -29,6 +29,7 @@ function PlayQuiz() {
   const [showPointsAnimation, setShowPointsAnimation] = useState(false);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isHost, setIsHost] = useState(false);
   // use centralized sound player
   const [showPreQuizTimer, setShowPreQuizTimer] = useState(true);
 
@@ -36,6 +37,8 @@ function PlayQuiz() {
   useEffect(() => {
     const initializeGame = async () => {
       const savedQuiz = localStorage.getItem(`quiz_${id}`);
+      const storedIsHost = localStorage.getItem('isHost') === 'true';
+      setIsHost(storedIsHost);
 
       if (!savedQuiz) {
         alert('Quiz não encontrado!');
@@ -61,9 +64,18 @@ function PlayQuiz() {
     initializeGame();
   }, [id, navigate]);
 
-  const handlePreQuizTimerComplete = () => {
+  const handlePreQuizTimerComplete = async () => {
     setShowPreQuizTimer(false);
-  }
+    if (isHost && roomIdQuery) {
+      try {
+        await webSocketService.connect();
+        webSocketService.sendStartMatch(roomIdQuery);
+        console.log("Host enviou sendStartMatch para roomId:", roomIdQuery);
+      } catch (error) {
+        console.error("Erro ao enviar sendStartMatch como host:", error);
+      }
+    }
+  };
 
 
 
@@ -317,8 +329,15 @@ function PlayQuiz() {
   if (showPreQuizTimer) {
     return (
       <div className="min-h-screen bg-darkGunmetal flex flex-col items-center justify-center text-center p-10">
-        <h2 className="text-white text-3xl font-bold mb-8">Preparado? <br/> O quiz vai começar!</h2>
-        <Timer initialTime={5} size="lg" progressColor="#4CAF50" onComplete={handlePreQuizTimerComplete} />
+        <h2 className="text-white text-3xl font-bold mb-8">Preparado? O quiz vai começar!</h2>
+        <Timer
+          initialTime={5}
+          size="lg"
+          progressColor="#4CAF50"
+          onComplete={handlePreQuizTimerComplete}
+          backendControlled={!!roomIdQuery} // Ativar controle backend se houver roomId
+          roomId={roomIdQuery}
+        />
       </div>
     );
   }
