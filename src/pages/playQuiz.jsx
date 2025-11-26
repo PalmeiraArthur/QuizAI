@@ -8,6 +8,7 @@ import webSocketService from '../services/websocketService';
 import Navbar from '../components/navbar';
 import clickSound from '../assets/sounds/click.mp3'
 import playSound from '../services/soundService';
+import Timer from '../components/Timer';
 
 
 function PlayQuiz() {
@@ -29,6 +30,7 @@ function PlayQuiz() {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [loading, setLoading] = useState(false);
   // use centralized sound player
+  const [showPreQuizTimer, setShowPreQuizTimer] = useState(true);
 
 
   useEffect(() => {
@@ -58,6 +60,11 @@ function PlayQuiz() {
 
     initializeGame();
   }, [id, navigate]);
+
+  const handlePreQuizTimerComplete = () => {
+    setShowPreQuizTimer(false);
+  }
+
 
 
   // WebSocket: connect and subscribe to room scoreboard updates, joins and exits
@@ -306,6 +313,15 @@ function PlayQuiz() {
     // Outras alternativas ficam normais
     return 'bg-silver text-raisinBlack opacity-50';
   };
+
+  if (showPreQuizTimer) {
+    return (
+      <div className="min-h-screen bg-darkGunmetal flex flex-col items-center justify-center text-center p-10">
+        <h2 className="text-white text-3xl font-bold mb-8">Preparado? <br/> O quiz vai começar!</h2>
+        <Timer initialTime={5} size="lg" progressColor="#4CAF50" onComplete={handlePreQuizTimerComplete} />
+      </div>
+    );
+  }
 
   if (!quiz) {
     return (
