@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import quizService from '../services/quizService';
-import roomService from '../services/roomService';
-
 
 function CreateQuiz() {
     const navigate = useNavigate();
@@ -13,9 +11,6 @@ function CreateQuiz() {
         numberOfQuestions: 5,
         numberOfAnswers: 4
     });
-    
-    const [searchParams] = useSearchParams();
-    const attachedRoomId = searchParams.get('roomId');
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -25,7 +20,6 @@ function CreateQuiz() {
         }));
     };
 
-    // handleSubmit modificado - cria sala após criar quiz
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (loading) return;
@@ -34,130 +28,28 @@ function CreateQuiz() {
             setLoading(true);
             setError(null);
 
-            const userId = localStorage.getItem('userId');
-            if (!userId) {
-                throw new Error('Usuário não encontrado');
-            }
-
-            // 1. Cleanup: tentar remover sala e quiz anteriores
-            // Se estamos anexando o quiz a uma sala existente (attachedRoomId), NÃO removemos a sala atual.
-            if (!attachedRoomId) {
-                const currentRoomId = localStorage.getItem('currentRoomId');
-                if (currentRoomId) {
-                    try {
-                        await roomService.deleteRoom(currentRoomId, userId);
-                        console.log('✅ Sala anterior removida:', currentRoomId);
-
-                        // Se tinha quiz vinculado, remover também
-                        const savedRoom = localStorage.getItem(`room_${currentRoomId}`);
-                        const roomObj = savedRoom ? JSON.parse(savedRoom) : null;
-                        if (roomObj?.quizId) {
-                            try {
-                                await quizService.deleteQuiz(roomObj.quizId);
-                                localStorage.removeItem(`quiz_${roomObj.quizId}`);
-                                console.log('✅ Quiz anterior removido:', roomObj.quizId);
-                            } catch (err) {
-                                console.warn('⚠️ Falha ao remover quiz anterior:', err);
-                            }
-                        }
-                    } catch (err) {
-                        console.warn('⚠️ Falha ao remover sala anterior:', err);
-                    }
-
-                    // Limpar localStorage
-                    localStorage.removeItem(`room_${currentRoomId}`);
-                    localStorage.removeItem('currentRoomId');
-                }
-            }
-
-            // 2. Criar novo quiz
+            // 1. Criar novo quiz
             const quiz = await quizService.createQuiz({
                 topic: formData.topic,
                 numberOfQuestions: formData.numberOfQuestions,
                 numberOfAnswers: formData.numberOfAnswers
             });
 
-            // Salvar quiz localmente
+            // 2. Salvar quiz localmente
             localStorage.setItem('lastCreatedQuizId', quiz.id);
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
 
-            // Se o formulário foi chamado com ?roomId=, anexamos o quiz a essa sala
-            if (attachedRoomId) {
-                try {
-                    // O backend não expõe GET /rooms/{id}; usamos localStorage para obter os dados da sala
-                    const existingRoom = JSON.parse(localStorage.getItem(`room_${attachedRoomId}`) || '{}');
-                    if (!existingRoom || !existingRoom.id) {
-                        console.warn('Sala não encontrada no localStorage para anexar o quiz:', attachedRoomId);
-                        setError('Sala não encontrada localmente. Atualize a página e tente novamente.');
-                        return;
-                    }
-
-                    const payload = {
-                        ownerId: userId,
-                        isPublic: existingRoom?.isPublic ?? true,
-                        maxNumberOfPlayers: existingRoom?.maxNumberOfPlayers ?? 10,
-                        quizId: quiz.id
-                    };
-
-                    await roomService.updateRoom(attachedRoomId, payload);
-
-                    // Atualizar localStorage da sala
-                    const updated = { ...existingRoom, quizId: quiz.id, topic: quiz.topic };
-                    localStorage.setItem(`room_${attachedRoomId}`, JSON.stringify(updated));
-                    console.log('✅ Topic do quiz salvo:', quiz.topic);
-
-                    navigate(`/sala/${attachedRoomId}`);
-                    return;
-                } catch (err) {
-                    console.warn('Falha ao anexar quiz à sala:', err);
-                    setError('Não foi possível anexar o quiz à sala.');
-                    return;
-                }
-            }
-
-            // Caso contrário, criamos uma nova sala e anexamos o quiz (fluxo legado)
-            const room = await roomService.createRoom({ ownerId: userId, isPublic: true, maxNumberOfPlayers: 10 });
-            await roomService.updateRoom(room.id, { ownerId: userId, isPublic: true, maxNumberOfPlayers: room.maxNumberOfPlayers || 10, quizId: quiz.id });
-
-            localStorage.setItem('currentRoomId', room.id);
-            
-            // Salvar scoreId do owner
-            if (room.ownerScoreboard?.id) {
-                localStorage.setItem('scoreId', room.ownerScoreboard.id);
-                console.log('✅ scoreId do owner salvo:', room.ownerScoreboard.id);
-            }
-
-            const roomToStore = { ...room };
-            // Normalize ownerScoreboard -> scoreboard array
-            if (roomToStore.ownerScoreboard) {
-                roomToStore.scoreboard = [roomToStore.ownerScoreboard];
-                delete roomToStore.ownerScoreboard;
-            }
-            if (roomToStore.scoreboard && !Array.isArray(roomToStore.scoreboard)) {
-                roomToStore.scoreboard = [roomToStore.scoreboard];
-            } else if (!roomToStore.scoreboard) {
-                roomToStore.scoreboard = [];
-            }
-            localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
-            
-            // Salvar topic do quiz para exibição no room
-            if (quiz.topic) {
-                roomToStore.topic = quiz.topic;
-                localStorage.setItem(`room_${room.id}`, JSON.stringify(roomToStore));
-                console.log('✅ Topic do quiz salvo:', quiz.topic);
-            }
-
-            navigate(`/sala/${room.id}`);
+            // 3. Redirecionar para quizPage
+            navigate(`/quiz/${quiz.id}`);
 
         } catch (err) {
-            console.error('Erro ao criar quiz/sala:', err);
+            console.error('Erro ao criar quiz:', err);
             setError('Erro ao criar quiz. Por favor tente novamente.');
         } finally {
             setLoading(false);
         }
     };
 
-    // handleCancel simplificado - só precisa navegar
     const handleCancel = () => navigate('/');
 
     return (
@@ -168,7 +60,6 @@ function CreateQuiz() {
                         <h1 className="text-4xl font-bold text-white mb-2">
                             Criar Quiz
                         </h1>
-           
                     </div>
 
                     <div className="bg-russianViolet rounded-md shadow-padrao p-8">
@@ -210,33 +101,42 @@ function CreateQuiz() {
                                         {formData.numberOfQuestions}
                                     </span>
                                 </div>
-                                <p className="text-gray-400 text-xs mt-1">
-                                    Mínimo: 1 | Máximo: 15
-                                </p>
                             </div>
 
                             <div>
                                 <label className="block text-white font-semibold mb-2">
                                     Alternativas por Questão
                                 </label>
-                                <div className="flex items-center gap-4">
-                                    <input
-                                        type="range"
-                                        name="numberOfAnswers"
-                                        value={formData.numberOfAnswers}
-                                        onChange={handleChange}
-                                        min="2"
-                                        max="6"
+
+                                {/* substituído o range por dois botões: 2 ou 4 opções */}
+                                <div className="flex gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 2 }))} // <-- Adicionado o '}' e ';' para fechar o onClick
                                         disabled={loading}
-                                        className="flex-1 h-2 bg-darkGunmetal rounded-lg appearance-none cursor-pointer accent-pistachio"
-                                    />
-                                    <span className="text-white font-bold text-2xl bg-darkGunmetal px-4 py-2 rounded-lg min-w-[60px] text-center">
-                                        {formData.numberOfAnswers}
-                                    </span>
+                                        aria-pressed={formData.numberOfAnswers === 2}
+                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${formData.numberOfAnswers === 2
+                                                ? 'bg-pistachio text-raisinBlack'
+                                                : 'bg-darkGunmetal text-white border-2 border-plumpPurple/30 hover:border-plumpPurple'
+                                            } disabled:opacity-50`}
+                                    >
+                                        2 Opções
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 4 }))} // <-- Adicionado o '}' e ';' para fechar o onClick
+                                        disabled={loading}
+                                        aria-pressed={formData.numberOfAnswers === 4}
+                                        // ...
+                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${formData.numberOfAnswers === 4
+                                                ? 'bg-pistachio text-raisinBlack'
+                                                : 'bg-darkGunmetal text-white border-2 border-plumpPurple/30 hover:border-plumpPurple'
+                                            } disabled:opacity-50`}
+                                    >
+                                        4 Opções
+                                    </button>
                                 </div>
-                                <p className="text-gray-400 text-xs mt-1">
-                                    Mínimo: 2 | Máximo: 6
-                                </p>
+
                             </div>
 
                             {error && (
@@ -265,7 +165,7 @@ function CreateQuiz() {
                             <button
                                 type="submit"
                                 disabled={loading || !formData.topic.trim()}
-                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-raisinBlack hover:text-pistachio transition-colorsdisabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
+                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-raisinBlack hover:text-pistachio transition-colors disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
                             >
                                 {loading ? 'Gerando Quiz com IA... (pode demorar até 1 min)' : 'Gerar Quiz com IA'}
                             </button>
@@ -274,8 +174,7 @@ function CreateQuiz() {
                                 type="button"
                                 onClick={handleCancel}
                                 disabled={loading}
-                                className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg disabled:opacity-50 transition-colors
-                                hover:bg-white hover:text-red-800"
+                                className="w-full bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg disabled:opacity-50 transition-colors hover:bg-white hover:text-red-800"
                             >
                                 ← Cancelar
                             </button>

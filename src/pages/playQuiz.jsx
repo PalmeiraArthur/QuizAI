@@ -176,7 +176,7 @@ function PlayQuiz() {
       } else {
         // fallback: buscar resposta correta e computar pontos localmente
         const correctId = await questionService.getCorrectAnswer(questionId);
-        const points = correctId === answerId ? 100 : 0; // fallback points
+        const points = correctId === answerId ? 10 : 0; // fallback points
         result = { pointsEarned: points };
       }
 
@@ -248,14 +248,13 @@ function PlayQuiz() {
     try {
       setLoading(true);
 
-      // We don't delete the room or the player's score here. Instead we
-      // return the user to the lobby so they can review the scoreboard.
-      const currentRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      // Não deletamos o quiz do localStorage para permitir replay
+      // const currentRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
 
-      // Clean up only quiz-specific local data
-      if (id) {
-        localStorage.removeItem(`quiz_${id}`);
-      }
+      // Clean up only quiz-specific UI state (mantemos o quiz salvo)
+      // if (id) {
+      //   localStorage.removeItem(`quiz_${id}`);
+      // }
 
       // Reset local UI state
       setCurrentQuestionIndex(0);
@@ -265,9 +264,9 @@ function PlayQuiz() {
       setAnsweredQuestions([]);
       setIsAnswerSubmitted(false);
 
-      // Navigate back to the room lobby if available
-      if (currentRoomId) {
-        navigate(`/sala/${currentRoomId}`);
+      // Navegar para a página do quiz para permitir jogar novamente
+      if (id) {
+        navigate(`/quiz/${id}`);
       } else {
         navigate('/');
       }
@@ -408,24 +407,7 @@ function PlayQuiz() {
             </div>
           </div>
 
-          {/* Live scoreboard */}
-          {/* <aside className="ml-6 w-64">
-            <div className="bg-darkGunmetal rounded-lg p-4">
-              <h4 className="text-white font-semibold mb-2">Scoreboard</h4>
-              {scoreboardState.length === 0 ? (
-                <p className="text-gray-400">Nenhum jogador ativo</p>
-              ) : (
-                <ol className="space-y-2">
-                  {[...scoreboardState].sort((a,b)=> (b.score||0)-(a.score||0)).map((p) => (
-                    <li key={p.id} className="flex justify-between text-white text-sm">
-                      <span>{p.player?.username || 'Jogador'}</span>
-                      <span className="text-pistachio font-bold">{p.score || 0}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-          </aside> */}
+
 
           {/* Questão */}
           <div className="bg-raisinBlack rounded-lg shadow-xl p-14 flex flex-col justify-center items-center gap-8">
