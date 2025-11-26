@@ -7,6 +7,9 @@ import QuizPage from './pages/quizPage'
 import PlayQuiz from './pages/playQuiz'
 import Settings from './pages/settings'
 
+// Temporário, teste do timer
+import TimerTestPage from './pages/TimerTestPage'
+
 const ProtectedRoute = ({ children }) => {
   const userId = localStorage.getItem('userId');
 
@@ -45,7 +48,11 @@ function App() {
         <Route path="/jogar-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
 
         <Route path="/configuracoes" element={<ProtectedRoute> <Settings /> </ProtectedRoute>} />
-       
+
+        {/* Página para testar o timer (temporária) */}
+        <Route path="/timer-test" element={ <TimerTestPage /> } />
+        {/*  */}
+
         <Route path="*" element={localStorage.getItem('userId') ? <Navigate to="/" /> : <Navigate to="/user" />} />
 
       </Routes>
