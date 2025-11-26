@@ -74,7 +74,7 @@ function QuizPage() {
                     </button>
 
                     {/* Conteúdo Principal */}
-                    <div className="flex flex-col justify-center items-center gap-8 text-center flex-1">
+                    <div className="flex flex-col justify-center items-center gap-8 text-center flex-1 mt-10">
                         
                         <div>
                             <h1 className="text-4xl font-bold text-white mb-2">
