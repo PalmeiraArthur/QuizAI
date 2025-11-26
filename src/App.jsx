@@ -4,11 +4,7 @@ import Home from './pages/home'
 import CreateUser from './pages/createUser'
 import CreateQuiz from './pages/createQuiz'
 import PlayQuiz from './pages/playQuiz'
-import FindRooms from './pages/findRooms'
-import Room from './pages/room'
 import Settings from './pages/settings'
-import SelectQuiz from './pages/selectQuiz'
-
 
 const ProtectedRoute = ({ children }) => {
   const userId = localStorage.getItem('userId');
@@ -42,16 +38,10 @@ function App() {
         <Route path="/" element={<ProtectedRoute> <Home /> </ProtectedRoute>} />
 
         <Route path="/criar-quiz" element={<ProtectedRoute> <CreateQuiz /> </ProtectedRoute>} />
-        <Route path="/criar-sala" element={<ProtectedRoute> <SelectQuiz /> </ProtectedRoute>} />
 
         <Route path="/jogar-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
 
-        <Route path="/encontrar-salas" element={<ProtectedRoute> <FindRooms /> </ProtectedRoute>} />
-
         <Route path="/configuracoes" element={<ProtectedRoute> <Settings /> </ProtectedRoute>} />
-
-        {/* Rota do lobby COM o roomId como parâmetro */}
-        <Route path="/sala/:roomId" element={<ProtectedRoute> <Room /> </ProtectedRoute>} />
        
         <Route path="*" element={localStorage.getItem('userId') ? <Navigate to="/" /> : <Navigate to="/user" />} />
 
