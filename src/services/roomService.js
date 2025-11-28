@@ -7,7 +7,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic,
-            maxNumberOfPlayers: maxNumberOfPlayers,
+            maxNumberOfPlayersInRoom: maxNumberOfPlayers,
         };
 
         try {
