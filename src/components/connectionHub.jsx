@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from "react-router-dom";
-import { useShinyEffect } from '../hooks/shinyEffect'; // adicionado
+import { useShinyEffect } from '../hooks/shinyEffect';
+import roomService from '../services/roomService';
+import webSocketService from '../services/websocketService';
 
+ 
 // roomService and webSocketService not used here; selection flow handled in /criar-sala
 
 function ConnectionHub() {

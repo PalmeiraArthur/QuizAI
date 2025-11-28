@@ -6,6 +6,8 @@ import CreateQuiz from './pages/createQuiz'
 import QuizPage from './pages/quizPage'
 import PlayQuiz from './pages/playQuiz'
 import Settings from './pages/settings'
+import Room from './pages/room'
+import FindRooms from './pages/findRooms'
 
 const ProtectedRoute = ({ children }) => {
   const userId = localStorage.getItem('userId');
@@ -43,6 +45,10 @@ function App() {
         <Route path="/quiz/:id" element={<ProtectedRoute> <QuizPage /> </ProtectedRoute>} />
 
         <Route path="/jogar-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
+
+        <Route path="/achar-salas" element={<ProtectedRoute> <FindRooms /> </ProtectedRoute>} />
+
+        <Route path="/sala/:roomId" element={<ProtectedRoute> <Room /> </ProtectedRoute>} />
 
         <Route path="/configuracoes" element={<ProtectedRoute> <Settings /> </ProtectedRoute>} />
        
