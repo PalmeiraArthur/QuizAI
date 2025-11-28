@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from "react-router-dom";
-import roomService from '../services/roomService';
-import webSocketService from '../services/websocketService';
+import { useShinyEffect } from '../hooks/shinyEffect'; // adicionado
+
+// roomService and webSocketService not used here; selection flow handled in /criar-sala
 
 function ConnectionHub() {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+    const [loading, _setLoading] = useState(false);
+    const { containerRef, handleMouseMove } = useShinyEffect(); // use shiny effect
 
     const handleCreateRoom = async () => {
         const roomOwnerId = localStorage.getItem('userId');
         console.log("FRONTEND: pegando o id do usuário:", roomOwnerId);
 
-        setLoading(true);
+        _setLoading(true);
 
         try {
             const newRoom = await roomService.createRoom({ ownerId: roomOwnerId, isPublic: true, maxNumberOfPlayers: 10 });
@@ -35,28 +37,29 @@ function ConnectionHub() {
         } catch (error) {
             console.error("Erro ao criar sala.", error);
         } finally {
-            setLoading(false);
+            _setLoading(false);
         }
     };
     
     return (
-        <div className="flex justify-center items-center gap-2 bg-raisinBlack p-[20px] w-[359px] h-[75px] rounded-[50px] mt-[30px] font-semibold text-[22px]
-        md:w-[617px] md:h-[100px]">
+        <div  className="flex justify-center items-center gap-2 ">
 
-            <button
-                onClick={() => navigate('/criar-quiz')}
-                disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
-            >
-                Criar Quiz
-            </button>
+            {/* shiny wrapper aplicado ao botão */}
+            <div ref={containerRef} onMouseMove={handleMouseMove} className="shiny-container inline-block">
+                <button
+                    onClick={() => navigate('/criar-quiz')}
+                    disabled={loading}
+                    className="bg-slateBlue rounded-md px-[80px] py-[30px] text-2xl font-semibold  hover:bg-white hover:text-slateBlue cursor-pointer transition-colors "
+                >
+                    Criar Quiz
+                </button>
+            </div>
 
             <button
                 onClick={handleCreateRoom}
                 disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
+                className="bg-slateBlue rounded-md px-[80px] py-[30px] text-2xl font-semibold  hover:bg-white hover:text-slateBlue cursor-pointer transition-colors "
+                
             >
                 {loading ? (
                     <span className="flex items-center justify-center">
@@ -73,8 +76,7 @@ function ConnectionHub() {
             <button
                 onClick={() => navigate('/achar-salas')}
                 disabled={loading}
-                className="bg-plumpPurple rounded-[50px] w-[100px] h-[50px] text-[18px] hover:bg-white hover:text-plumpPurple cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                md:w-[180px] md:h-[61px] md:text-[22px]"
+                className="bg-slateBlue rounded-md px-[80px] py-[30px] text-2xl font-semibold  hover:bg-white hover:text-slateBlue cursor-pointer transition-colors "
             >
                 Salas
             </button>

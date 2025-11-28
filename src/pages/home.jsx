@@ -1,27 +1,45 @@
-//aqui no home eu apenas defino qual a constante que eu quero puxar os ids e ele renderiza a lista com os ids em sequencia e consequentemente seu cover e seu titulo.
-
+// src/pages/home.jsx
 import Navbar from "../components/navbar";
 import ConnectionHub from "../components/connectionHub";
+import BackgroundPattern from "../components/backgroundPattern";
 
 
 function Home() {
   return (
-    <div>
-      <header>
-        <Navbar />
-      </header>
+    <BackgroundPattern>
+      <div>
+        <header>
+          <Navbar />
+        </header>
+        <main className="bg-russianViolet bg-gradient-padrao  rounded-t-[13px] mt-[20px]  w-screen h-dvh flex flex-col gap-[30px] items-center shadow-[0px_0px_17px_3px_rgba(0,_0,_0,_0.4)]
+        lg:w-[1140px] lg:pt-[80px] lg:rounded-none lg:mt-[60px] ">
+          <div className="mt-[40px] text-[22px] font-semibold text-center flex flex-col gap-10">
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex">
+                <p className="text-2xl">Este é o Quiz AI</p>
+                <p className="text-pistachio text-2xl">!</p>
+              </div>
 
-      <main className="bg-darkGunmetal mt-[100px] rounded-t-[13px] w-full min-h-screen flex flex-col gap-[30px] items-center shadow-[0px_0px_17px_3px_rgba(0,_0,_0,_0.4)]
-      md:w-[1140px] md:mt-0 md:pt-[80px] md:rounded-none ">
-        <ConnectionHub />
+              <p>Aqui você cria Quizzes personalizados com ajuda da inteligencia artificial.</p>
 
-        <h1>
-          working in progress...
-        </h1>
+            </div>
 
+            <div className="flex flex-row gap-1 items-center justify-center">
+              <p className="text-pistachio text-shadow-pistachio text-shadow-lg/20">Crie</p>
+              <p>, </p>
+              <p className="text-pistachio text-shadow-pistachio text-shadow-lg/20">estude</p>
+              <p> e</p>
+              <p className="text-pistachio text-shadow-pistachio text-shadow-lg/20">divirta-se</p>
+              <p>!</p>
 
-      </main>
-    </div>
+            </div>
+
+          </div>
+
+          <ConnectionHub />
+        </main>
+      </div>
+    </BackgroundPattern>
   );
 }
 

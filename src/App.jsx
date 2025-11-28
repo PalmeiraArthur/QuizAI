@@ -3,10 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/home'
 import CreateUser from './pages/createUser'
 import CreateQuiz from './pages/createQuiz'
+import QuizPage from './pages/quizPage'
 import PlayQuiz from './pages/playQuiz'
-import FindRooms from './pages/findRooms'
-import Room from './pages/room'
-
+import Settings from './pages/settings'
 
 const ProtectedRoute = ({ children }) => {
   const userId = localStorage.getItem('userId');
@@ -41,12 +40,11 @@ function App() {
 
         <Route path="/criar-quiz" element={<ProtectedRoute> <CreateQuiz /> </ProtectedRoute>} />
 
-        <Route path="/play-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
+        <Route path="/quiz/:id" element={<ProtectedRoute> <QuizPage /> </ProtectedRoute>} />
 
-        <Route path="/achar-salas" element={<ProtectedRoute> <FindRooms /> </ProtectedRoute>} />
+        <Route path="/jogar-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
 
-        {/* Rota do lobby COM o roomId como parâmetro */}
-        <Route path="/sala/:roomId" element={<ProtectedRoute> <Room /> </ProtectedRoute>} />
+        <Route path="/configuracoes" element={<ProtectedRoute> <Settings /> </ProtectedRoute>} />
        
         <Route path="*" element={localStorage.getItem('userId') ? <Navigate to="/" /> : <Navigate to="/user" />} />
 

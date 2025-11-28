@@ -38,7 +38,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic: updateData.isPublic,
-            maxNumberOfPlayers: updateData.maxNumberOfPlayers,
+            maxNumberOfPlayersInRoom: updateData.maxNumberOfPlayers,
             quizId: updateData.quizId
         };
 
