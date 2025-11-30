@@ -429,6 +429,42 @@ class WebsocketService {
     this.subscriptions.set(subscriptionKey, subscription);
     console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
   }
+
+  subscribeToQuestionCountdown(roomId, onCountdownUpdate) {
+    const subscriptionKey = `question-countdown-${roomId}`;
+    const destination = `/topic/rooms/${roomId}/question-countdown`;
+
+    if (!this.client || !this.client.connected) {
+      console.error(
+        `[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`
+      );
+      return;
+    }
+
+    // Se já temos uma subscrição, limpar primeiro
+    if (this.subscriptions.has(subscriptionKey)) {
+      console.warn(
+        `[WEBSOCKET] ⚠️ Já inscrito em ${destination}. Limpando subscrição antiga...`
+      );
+      this.subscriptions.get(subscriptionKey).unsubscribe();
+      this.subscriptions.delete(subscriptionKey);
+    }
+
+    console.log(`[WEBSOCKET] 🔄 Criando nova subscrição para ${destination}`);
+
+    const subscription = this.client.subscribe(destination, (message) => {
+      try {
+        const data = JSON.parse(message.body);
+        console.log(`[WEBSOCKET] 📨 Question countdown update:`, data);
+        onCountdownUpdate(data);
+      } catch (error) {
+        console.error(`[WEBSOCKET] ❌ Erro ao processar countdown:`, error);
+      }
+    });
+
+    this.subscriptions.set(subscriptionKey, subscription);
+    console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+  }
 }
 
 export default new WebsocketService();

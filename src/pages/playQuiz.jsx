@@ -1,5 +1,5 @@
 // src/pages/playQuiz.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import scoreService from '../services/scoreService';
 import questionService from '../services/questionService';
@@ -32,6 +32,11 @@ function PlayQuiz() {
   const [isHost, setIsHost] = useState(false);
   // use centralized sound player
   const [showPreQuizTimer, setShowPreQuizTimer] = useState(true);
+  const [preQuizTimeLeft, setPreQuizTimeLeft] = useState(5); // Tempo inicial para o timer de pré-quiz
+  const [questionTimeLeft, setQuestionTimeLeft] = useState(0);
+  const [questionTimeLimit, setQuestionTimeLimit] = useState(30); // tempo limite padrão
+
+  const isTransitioningRef = useRef(false); // Ref para controlar se uma transição de questão está em andamento
 
 
   useEffect(() => {
@@ -59,12 +64,16 @@ function PlayQuiz() {
       } else {
         console.warn('ScoreId não encontrado no localStorage. Jogo seguirá sem scoreboard (fallback local).');
       }
+      
+      // Log roomId info
+      const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      console.log('[PLAYQUIZ] Initialized. RoomID:', effectiveRoomId, 'RoomIdQuery:', roomIdQuery);
     };
 
     initializeGame();
-  }, [id, navigate]);
+  }, [id, navigate, roomIdQuery]);
 
-  const handlePreQuizTimerComplete = async () => {
+  const handlePreQuizTimerComplete = useCallback(async () => {
     setShowPreQuizTimer(false);
     if (isHost && roomIdQuery) {
       try {
@@ -75,9 +84,23 @@ function PlayQuiz() {
         console.error("Erro ao enviar sendStartMatch como host:", error);
       }
     }
-  };
+  }, [isHost, roomIdQuery]);
 
+  // Pre-quiz timer countdown
+  useEffect(() => {
+    if (!showPreQuizTimer) return;
 
+    if (preQuizTimeLeft <= 0) {
+      handlePreQuizTimerComplete();
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      setPreQuizTimeLeft(prev => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [showPreQuizTimer, preQuizTimeLeft, isHost, roomIdQuery, handlePreQuizTimerComplete]);
 
   // WebSocket: connect and subscribe to room scoreboard updates, joins and exits
   useEffect(() => {
@@ -85,70 +108,20 @@ function PlayQuiz() {
       const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
       if (!roomId) return;
 
-      // inicializar scoreboard a partir do localStorage
-      const roomStr = localStorage.getItem(`room_${roomId}`);
-      if (roomStr) {
-        try {
-          const roomObj = JSON.parse(roomStr);
-          setScoreboardState(roomObj.scoreboard || []);
-        } catch (err) {
-          console.warn('Falha ao parsear room do localStorage para scoreboard', err);
-        }
-      }
-
       try {
         await webSocketService.connect();
 
-
         webSocketService.subscribeToScoreUpdates(roomId, (update) => {
           // update => { scoreId, player, pointsEarned }
-          console.log('[WS] Score update recebido:', update);
           setScore(prev => prev + (update.pointsEarned || 0));
-
-          const updateId = update.scoreId || update.id;
-
-          // Atualizar scoreboard local
-          setScoreboardState((prev) => {
-            const exists = prev.some(s => s.id === updateId);
-            let next;
-            if (exists) {
-              next = prev.map(s => s.id === updateId ? { ...s, score: (s.score || 0) + (update.pointsEarned || 0) } : s);
-            } else {
-              next = [...prev, { id: updateId, score: update.pointsEarned || 0, player: update.player }];
-            }
-
-            // persist
-            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
-            if (room && room.id) {
-              room.scoreboard = next;
-              localStorage.setItem(`room_${roomId}`, JSON.stringify(room));
-            }
-
-            return next;
-          });
         });
 
-        webSocketService.subscribeToPlayerJoins(roomId, (join) => {
-          console.log('[WS] Player joined during game:', join);
-          setScoreboardState(prev => {
-            if (prev.some(s => s.id === (join.scoreId || join.id))) return prev;
-            const normalized = { id: join.scoreId || join.id, score: join.score || 0, player: join.player };
-            const next = [...prev, normalized];
-            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
-            if (room && room.id) { room.scoreboard = next; localStorage.setItem(`room_${roomId}`, JSON.stringify(room)); }
-            return next;
-          });
+        webSocketService.subscribeToPlayerJoins(roomId, () => {
+          // Player join event
         });
 
-        webSocketService.subscribeToPlayerExits(roomId, (exit) => {
-          console.log('[WS] Player exit during game:', exit);
-          setScoreboardState(prev => {
-            const idToRemove = exit.scoreId || exit.id;
-            const next = prev.filter(s => s.id !== idToRemove);
-            const room = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
-            if (room && room.id) { room.scoreboard = next; localStorage.setItem(`room_${roomId}`, JSON.stringify(room)); }
-            return next;
-          });
+        webSocketService.subscribeToPlayerExits(roomId, () => {
+          // Player exit event
         });
 
       } catch (err) {
@@ -163,9 +136,6 @@ function PlayQuiz() {
       if (roomId) webSocketService.cleanupSubscriptions(roomId);
     };
   }, [roomIdQuery]);
-
-  // local scoreboard state
-  const [scoreboardState, setScoreboardState] = useState([]);
 
   const handleSelectAnswer = async (answerId) => {
     if (isAnswerSubmitted) return;
@@ -200,7 +170,6 @@ function PlayQuiz() {
       }
 
       const points = result.pointsEarned || 0;
-      console.log('Pontos ganhos nesta rodada:', points);
 
       // Notify other players via websocket so backend can broadcast updated scoreboard
       try {
@@ -218,7 +187,6 @@ function PlayQuiz() {
         try {
           const correctId = await questionService.getCorrectAnswer(questionId);
           setCorrectAnswer(correctId);
-          console.log('Resposta correta:', correctId);
         } catch (error) {
           console.error('Erro ao buscar resposta correta:', error);
         }
@@ -251,16 +219,113 @@ function PlayQuiz() {
     }
   };
 
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < quiz.questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setSelectedAnswer(null);
-      setCorrectAnswer(null);
-      setIsAnswerSubmitted(false);
-    } else {
-      setShowResults(true);
+  const handleNextQuestion = useCallback(() => {
+    if (!quiz || isTransitioningRef.current) {
+      console.warn('[handleNextQuestion] Quiz is null or already transitioning. Cannot advance question.');
+      return;
     }
-  };
+
+    isTransitioningRef.current = true; // Inicia a transição
+
+    setCurrentQuestionIndex(prevIndex => {
+      const nextIndex = prevIndex + 1;
+      if (nextIndex < quiz.questions.length) {
+        setSelectedAnswer(null);
+        setCorrectAnswer(null);
+        setIsAnswerSubmitted(false);
+        isTransitioningRef.current = false; // Finaliza a transição após o state update
+        return nextIndex;
+      } else {
+        setShowResults(true);
+        isTransitioningRef.current = false; // Finaliza a transição (quiz completo)
+        return prevIndex; // Não muda o index se o quiz terminou
+      }
+    });
+  }, [quiz, setShowResults]); // Inclui quiz como dependência
+
+  // Handle question timeout - automatically advance to next question without giving points
+  const handleQuestionTimeout = useCallback(() => {
+    if (isAnswerSubmitted || isTransitioningRef.current) return; // Só avança se não respondeu e NÃO estiver em transição
+
+    setIsAnswerSubmitted(true);
+    setSelectedAnswer(null);
+    setCorrectAnswer(null);
+    handleNextQuestion();
+  }, [isAnswerSubmitted, handleNextQuestion]);
+
+  // Initialize timer when a new question is displayed
+  useEffect(() => {
+    if (showPreQuizTimer || !quiz) return;
+
+    // Set initial timer values when question changes
+    const newInitialTime = 30; // Default 30 seconds, can be adjusted based on quiz config
+    setQuestionTimeLimit(newInitialTime);
+    setQuestionTimeLeft(newInitialTime);
+    setIsAnswerSubmitted(false); // Reset answered state for new question
+  }, [currentQuestionIndex, showPreQuizTimer, quiz]);
+
+  // WebSocket: connect and subscribe to question countdown updates
+  useEffect(() => {
+    if (showPreQuizTimer) {
+      setQuestionTimeLeft(0);
+      setQuestionTimeLimit(30);
+      return;
+    }
+
+    const setupQuestionTimer = async () => {
+      const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      
+      if (!roomId) {
+        return;
+      }
+
+      try {
+        await webSocketService.connect();
+        
+        webSocketService.subscribeToQuestionCountdown(roomId, (timeData) => {
+          const timeRemaining = timeData.timeRemainingInSeconds ?? 0;
+          const totalTime = timeData.totalTimeInSeconds ?? 30;
+          
+          setQuestionTimeLeft(timeRemaining);
+          setQuestionTimeLimit(totalTime);
+          
+          // Se o tempo chegou a 0 e o usuário não respondeu, avançar para próxima questão
+          if (timeRemaining <= 0 && !isAnswerSubmitted) {
+            handleQuestionTimeout();
+          }
+        });
+      } catch (err) {
+        console.warn('[TIMER] Falha ao conectar websocket:', err);
+      }
+    };
+
+    setupQuestionTimer();
+
+    return () => {
+      // Cleanup if needed
+    };
+  }, [showPreQuizTimer, roomIdQuery, isAnswerSubmitted, handleQuestionTimeout]);
+
+  // Fallback: Local timer countdown when no backend updates
+  useEffect(() => {
+    if (showPreQuizTimer || questionTimeLeft <= 0 || isAnswerSubmitted) return;
+
+    const localTimerId = setInterval(() => {
+      setQuestionTimeLeft(prev => {
+        if (prev <= 1) {
+          if (!isAnswerSubmitted) {
+            handleQuestionTimeout();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(localTimerId);
+    };
+  }, [showPreQuizTimer, isAnswerSubmitted, questionTimeLeft, handleQuestionTimeout]);
 
   // Renomeando de handlePlayAgain para handleFinishAndCleanup
   const handleFinishAndCleanup = async () => {
@@ -332,11 +397,10 @@ function PlayQuiz() {
         <h2 className="text-white text-3xl font-bold mb-8">Preparado? O quiz vai começar!</h2>
         <Timer
           initialTime={5}
+          currentTime={preQuizTimeLeft}
           size="lg"
           progressColor="#4CAF50"
           onComplete={handlePreQuizTimerComplete}
-          backendControlled={!!roomIdQuery} // Ativar controle backend se houver roomId
-          roomId={roomIdQuery}
         />
       </div>
     );
@@ -351,6 +415,16 @@ function PlayQuiz() {
   }
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
+  
+  // Guard against undefined currentQuestion (e.g., when quiz ends)
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-darkGunmetal flex items-center justify-center">
+        <div className="text-white text-xl">Finalizando...</div>
+      </div>
+    );
+  }
+
   const answersArray = Array.from(currentQuestion.answers);
   const progress = ((currentQuestionIndex + 1) / quiz.questions.length) * 100;
 
@@ -421,17 +495,34 @@ function PlayQuiz() {
                   Questão {currentQuestionIndex + 1} de {quiz.questions.length}
                 </span>
               </div>
-              <div className="text-right relative">
-                <div className="text-pistachio font-bold text-[40px]">{score}</div>
-                <div className="text-gray-400 text-[18px]">pontos</div>
+              <div className="text-right relative flex items-center gap-6">
+                {/* Timer da questão */}
+                <div className="flex flex-col items-center">
+                    <Timer
+                    initialTime={questionTimeLimit}
+                    currentTime={questionTimeLeft}
+                    size="sm"
+                    strokeWidth={6}
+                    circleColor="#3a3a3a"
+                    progressColor={questionTimeLeft <= 5 ? '#ef4444' : '#4CAF50'}
+                    textColor="#ffffff"
+                    onComplete={handleQuestionTimeout}
+                  />
+                  <span className="text-gray-400 text-xs mt-2">Tempo: {questionTimeLeft}s</span>
+                </div>
 
-                {/* ANIMAÇÃO DE PONTOS */}
-                {showPointsAnimation && (
-                  <div className={`absolute -top-2 right-0 text-4xl font-bold animate-float ${pointsEarned > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                    {pointsEarned > 0 ? `+${pointsEarned}` : '0'}
-                  </div>
-                )}
+                <div>
+                  <div className="text-pistachio font-bold text-[40px]">{score}</div>
+                  <div className="text-gray-400 text-[18px]">pontos</div>
+
+                  {/* ANIMAÇÃO DE PONTOS */}
+                  {showPointsAnimation && (
+                    <div className={`absolute -top-2 right-0 text-4xl font-bold animate-float ${pointsEarned > 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                      {pointsEarned > 0 ? `+${pointsEarned}` : '0'}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="w-full bg-darkGunmetal rounded-full h-2">

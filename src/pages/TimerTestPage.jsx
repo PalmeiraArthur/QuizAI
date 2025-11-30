@@ -5,12 +5,12 @@ const TimerTestPage = () => {
   return (
     <div className="m-[20px]">
       <Timer
-        initialTime={5}
+        initialTime={100}
         size={'xl'}
-        strokeWidth={10}
-        circleColor="#e0e0e0"
-        progressColor="#4CAF50"
-        textColor="#e0e0e0"
+        strokeWidth={120}
+        circleColor="whitesmoke"
+        progressColor="darkorange"
+        textColor="black"
         onComplete={() => console.log("Timer completed!")}
       />
     </div>
