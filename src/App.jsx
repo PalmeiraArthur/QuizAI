@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/home'
 import CreateUser from './pages/createUser'
 import CreateQuiz from './pages/createQuiz'
-import QuizPage from './pages/quizPage'
 import PlayQuiz from './pages/playQuiz'
 import Settings from './pages/settings'
 import Room from './pages/room'
@@ -41,8 +40,6 @@ function App() {
         <Route path="/" element={<ProtectedRoute> <Home /> </ProtectedRoute>} />
 
         <Route path="/criar-quiz" element={<ProtectedRoute> <CreateQuiz /> </ProtectedRoute>} />
-
-        <Route path="/quiz/:id" element={<ProtectedRoute> <QuizPage /> </ProtectedRoute>} />
 
         <Route path="/jogar-quiz/:id" element={<ProtectedRoute> <PlayQuiz /> </ProtectedRoute>} />
 

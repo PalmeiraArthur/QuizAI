@@ -6,6 +6,7 @@ import roomService from '../services/roomService';
 import Navbar from '../components/navbar';
 import toast, { Toaster } from 'react-hot-toast';
 import webSocketService from '../services/websocketService';
+import RoomCard from '../components/roomCard';
 
 
 function FindRooms() {
@@ -138,30 +139,9 @@ function FindRooms() {
   }
 
   return (
-    <div className="min-h-screen bg-raisinBlack flex justify-center">
-
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          success: {
-            style: {
-              fontFamily: '"Poppins", sans-serif', // define a fonte específica
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#5649B6',
-              background: 'white',
-            },
-            iconTheme: {
-              primary: '#5649B6',
-              secondary: 'white',
-            },
-
-          },
-        }}
-      />
-
-
-      <main className="container px-18 py-8 w-[1140px] md:mt-[100px]">
+    <div>
+      <main className="container bg-russianViolet px-4 py-18 w-dvw min-h-dvh 
+       lg:w-[1140px] lg:p-18">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
@@ -201,87 +181,15 @@ function FindRooms() {
 
             </div>
           ) : (
-            <div className="flex justify-start bg-darkGunmetal rounded-md shadow-[inset_0px_0px_13px_1px_rgba(0,_0,_0,_0.3)] p-6 text-center">
+            <div className="bg-darkGunmetal/50 shadow-[inset_0px_0px_15px_0px_rgba(0,_0,_0,_0.1)] rounded-md grid grid-cols-1 justify-center items-center p-4 gap-2
+            md:grid-cols-2 lg:grid-cols-3">
               {rooms.map((room) => (
-                <div
+                <RoomCard
                   key={room.id}
-                  className="bg-raisinBlack w-[300px] h-[230px] rounded-md shadow-xl p-6 flex flex-col gap-6 justify-center items-center "
-                >
-                  {/* Header do Card */}
-                  <div className="flex flex-col w-fit gap-1 ">
-
-                    <h3 className="text-[24px] font-semibold text-white">
-                      {room.quizTopic}
-                    </h3>
-                    <span className="flex justify-center items-center bg-emerald-950 py-1 text-pistachio text-xs font-semibold rounded-md">
-                      PÚBLICA
-                    </span>
-
-                  </div>
-
-                  {/* Informações da Sala */}
-                  <div className="grid grid-cols-3 grid-rows-1">
-
-                    <div className='flex flex-col justify-center items-center gap-3'>
-                      <img src="src\assets\sounds\iconsButtons\crown.svg" width="30" />
-
-                      <span
-                        className={`font-semibold ${room.ownerName === currentUsername ? 'text-pistachio' : 'text-white'
-                          }`}
-                      >
-                        <span className="whitespace-nowrap text-[14px] font-semibold">
-                          {room.ownerName}
-                          {room.ownerName === currentUsername && (
-                            <span className="text-pistachio"> (Você)</span>
-                          )}
-                        </span>
-                      </span>
-
-                    </div>
-
-                    <div className='flex flex-col justify-center items-center gap-1'>
-                      <img src="src\assets\sounds\iconsButtons\maxPlayers.svg" width="21" />
-
-                      <p className='text-pistachio font-semibold'>
-                        1/{room.maxNumberOfPlayers}
-                      </p>
-
-                    </div>
-
-                    <div className="flex flex-col items-center">
-
-                      <img src="src\assets\sounds\iconsButtons\codeIcon.svg" width="30" />
-                      <code className="text-pistachio text-[18px] font-semibold racking-wider">
-                        {room.roomCode}
-                      </code>
-
-                    </div>
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(room.roomCode);
-                        toast.success('Código copiado!');
-                      }}
-                      className="flex-1 px-4 py-2 bg-plumpPurple text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors text-sm"
-                    >
-                      <img src="src\assets\sounds\iconsButtons\copyIcon.svg" width="20" />
-                    </button>
-
-                    <button
-                      onClick={() => handleJoinRoom(room.roomCode, room.id)}
-                      className="flex gap-2 px-4 py-2 bg-pistachio text-white font-semibold rounded-lg transition-colors text-sm"
-                    >
-                      <img src="src\assets\sounds\iconsButtons\joinIcon.svg" width="20" />
-                      <p>
-                        Entrar na sala
-                      </p>
-                    </button>
-
-                  </div>
-                </div>
+                  room={room}
+                  currentUsername={currentUsername}
+                  onJoinRoom={handleJoinRoom}
+                />
               ))}
             </div>
           )}

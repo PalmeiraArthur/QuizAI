@@ -1,9 +1,13 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import quizService from '../services/quizService';
+import roomService from '../services/roomService';
 
 function CreateQuiz() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const roomId = searchParams.get('roomId'); // Pega roomId da URL
+    
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [formData, setFormData] = useState({
@@ -29,37 +33,79 @@ function CreateQuiz() {
             setError(null);
 
             // 1. Criar novo quiz
+            console.log('🎮 Criando quiz...');
             const quiz = await quizService.createQuiz({
                 topic: formData.topic,
                 numberOfQuestions: formData.numberOfQuestions,
                 numberOfAnswers: formData.numberOfAnswers
             });
 
+            console.log('✅ Quiz criado:', quiz);
+
             // 2. Salvar quiz localmente
             localStorage.setItem('lastCreatedQuizId', quiz.id);
             localStorage.setItem(`quiz_${quiz.id}`, JSON.stringify(quiz));
 
-            // 3. Redirecionar para quizPage
-            navigate(`/quiz/${quiz.id}`);
+            // 3. Se veio de uma sala, vincular o quiz à sala
+            if (roomId) {
+                console.log('🔗 Vinculando quiz à sala:', roomId);
+                
+                const userId = localStorage.getItem('userId');
+                
+                // Atualizar a sala com o quizId
+                await roomService.updateRoom(roomId, {
+                    ownerId: userId,
+                    quizId: quiz.id
+                });
+
+                console.log('✅ Quiz vinculado à sala com sucesso!');
+
+                // Atualizar localStorage da sala
+                const roomData = JSON.parse(localStorage.getItem(`room_${roomId}`) || '{}');
+                if (roomData.id) {
+                    roomData.quizId = quiz.id;
+                    roomData.quiz = { id: quiz.id, topic: quiz.topic };
+                    localStorage.setItem(`room_${roomId}`, JSON.stringify(roomData));
+                    console.log('💾 localStorage da sala atualizado');
+                }
+
+                // Redirecionar de volta para a sala
+                navigate(`/sala/${roomId}`);
+            } else {
+                // Se não veio de uma sala, vai para a página do quiz
+                navigate(`/quiz/${quiz.id}`);
+            }
 
         } catch (err) {
-            console.error('Erro ao criar quiz:', err);
+            console.error('❌ Erro ao criar quiz:', err);
             setError('Erro ao criar quiz. Por favor tente novamente.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCancel = () => navigate('/');
+    const handleCancel = () => {
+        // Se veio de uma sala, volta para ela; senão vai para home
+        if (roomId) {
+            navigate(`/room/${roomId}`);
+        } else {
+            navigate('/');
+        }
+    };
 
     return (
         <div className="min-h-screen bg-russianViolet bg-gradient-padrao flex justify-center w-[1140px] shadow-padrao">
-            <main className="container mx-auto px-4 py-8 ">
+            <main className="container mx-auto px-4 py-8">
                 <div className="max-w-2xl mx-auto">
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-white mb-2">
                             Criar Quiz
                         </h1>
+                        {roomId && (
+                            <p className="text-pistachio text-sm">
+                                Este quiz será vinculado à sala automaticamente
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-russianViolet rounded-md shadow-padrao p-8">
@@ -108,35 +154,34 @@ function CreateQuiz() {
                                     Alternativas por Questão
                                 </label>
 
-                                {/* substituído o range por dois botões: 2 ou 4 opções */}
                                 <div className="flex gap-4">
                                     <button
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 2 }))} // <-- Adicionado o '}' e ';' para fechar o onClick
+                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 2 }))}
                                         disabled={loading}
                                         aria-pressed={formData.numberOfAnswers === 2}
-                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${formData.numberOfAnswers === 2
+                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                                            formData.numberOfAnswers === 2
                                                 ? 'bg-pistachio text-raisinBlack'
                                                 : 'bg-darkGunmetal text-white border-2 border-plumpPurple/30 hover:border-plumpPurple'
-                                            } disabled:opacity-50`}
+                                        } disabled:opacity-50`}
                                     >
                                         2 Opções
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 4 }))} // <-- Adicionado o '}' e ';' para fechar o onClick
+                                        onClick={() => setFormData(prev => ({ ...prev, numberOfAnswers: 4 }))}
                                         disabled={loading}
                                         aria-pressed={formData.numberOfAnswers === 4}
-                                        // ...
-                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${formData.numberOfAnswers === 4
+                                        className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                                            formData.numberOfAnswers === 4
                                                 ? 'bg-pistachio text-raisinBlack'
                                                 : 'bg-darkGunmetal text-white border-2 border-plumpPurple/30 hover:border-plumpPurple'
-                                            } disabled:opacity-50`}
+                                        } disabled:opacity-50`}
                                     >
                                         4 Opções
                                     </button>
                                 </div>
-
                             </div>
 
                             {error && (
@@ -165,7 +210,7 @@ function CreateQuiz() {
                             <button
                                 type="submit"
                                 disabled={loading || !formData.topic.trim()}
-                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-raisinBlack hover:text-pistachio transition-colors disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
+                                className="w-full bg-pistachio text-raisinBlack font-bold py-4 px-6 rounded-lg hover:bg-raisinBlack hover:text-pistachio disabled:opacity-50 disabled:cursor-not-allowed transition-all text-lg shadow-lg"
                             >
                                 {loading ? 'Gerando Quiz com IA... (pode demorar até 1 min)' : 'Gerar Quiz com IA'}
                             </button>

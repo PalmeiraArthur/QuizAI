@@ -2,12 +2,13 @@
 import api from './api';
 
 const roomService = {
-    createRoom: async ({ ownerId, isPublic = true, maxNumberOfPlayers = 10 }) => {
+    createRoom: async ({ ownerId, isPublic = true, maxNumberOfPlayers = 10, w }) => {
 
         const payload = {
             ownerId,
             isPublic,
             maxNumberOfPlayersInRoom: maxNumberOfPlayers,
+            waitTimeInSeconds: 10
         };
 
         try {
@@ -38,7 +39,7 @@ const roomService = {
         const payload = {
             ownerId,
             isPublic: updateData.isPublic,
-            maxNumberOfPlayersInRoom: updateData.maxNumberOfPlayers,
+            maxNumberOfPlayers: updateData.maxNumberOfPlayers,
             quizId: updateData.quizId
         };
 

@@ -10,9 +10,11 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
   };
 
   return (
-    <div className="bg-raisinBlack w-[330px] h-[250px] rounded-md shadow-xl px-4 flex flex-col gap-7 justify-center items-center">
-      <CustomToaster/>
-      {/* Header do Card */}
+    <div>
+      <CustomToaster />
+
+      <div className='bg-raisinBlack rounded-md flex flex-col justify-center items-center gap-4 py-6 max-w-[400px]'>
+        {/* Header do Card */}
       <div className="flex flex-col w-fit gap-1">
         <h3 className="text-[24px] font-semibold text-white">
           {room.quizTopic}
@@ -37,14 +39,6 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
           </span>
         </div>
 
-        {/* Players Count */}
-        <div className="flex flex-col justify-center items-center">
-          <Users />
-          <p className="text-pistachio font-semibold">
-            1/{room.maxNumberOfPlayers}
-          </p>
-        </div>
-
         {/* Room Code */}
         <div className="flex flex-col items-center">
           <RectangleEllipsis />
@@ -52,6 +46,17 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
             {room.roomCode}
           </code>
         </div>
+
+        {/* Players Count */}
+        <div className="flex flex-col justify-center items-center">
+          <Users />
+
+          <p className="text-pistachio font-semibold">
+            1/{room.maxNumberOfPlayers}
+          </p>
+        </div>
+
+
       </div>
 
       {/* Ações */}
@@ -71,6 +76,9 @@ function RoomCard({ room, currentUsername, onJoinRoom }) {
           <p>Entrar na sala</p>
         </button>
       </div>
+
+      </div>
+      
     </div>
   );
 }
