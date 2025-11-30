@@ -181,14 +181,15 @@ class WebsocketService {
     }
   }
 
+
   /**
-   * Notifica todos os players que o host iniciou o jogo
+   * Envia pedido para iniciar a partida (usado pelo host)
    * @param {string} roomId - ID da sala
-   * @param {string} quizId - ID do quiz que será jogado
+   * @param {string} playerId - ID do player (host)
    */
-  sendGameStart(roomId, quizId) {
-    const destination = `/quizAI/sendGameStart/${roomId}`;
-    const payload = { quizId };
+  sendStartMatch(roomId, playerId) {
+    const destination = `/quizAI/sendStartMatch/${roomId}`;
+    const payload = { playerId };
 
     if (!this.client || !this.connected) {
       console.error(
@@ -203,37 +204,12 @@ class WebsocketService {
         body: JSON.stringify(payload),
       });
       console.log(
-        `[WEBSOCKET] 📤 Iniciando jogo para todos os players`,
+        `[WEBSOCKET] 📤 Pedido de início de partida enviado para ${destination}`,
         payload
       );
     } catch (error) {
-      console.error(`[WEBSOCKET] ❌ Erro ao enviar game start:`, error);
-    }
-  }
-
-  // Novo método para notificar o backend que o host iniciou a contagem para o jogo
-  sendStartMatch(roomId) {
-    const destination = `/quizAI/sendStartMatch/${roomId}`;
-    // Não é necessário payload, apenas a notificação
-
-    if (!this.client || !this.connected) {
       console.error(
-        `[WEBSOCKET] ❌ Não conectado. Não foi possível enviar para ${destination}`
-      );
-      return;
-    }
-
-    try {
-      this.client.publish({
-        destination,
-        body: JSON.stringify({ message: "Start Match Initiated" }), // Pode ser um payload vazio ou simples
-      });
-      console.log(
-        `[WEBSOCKET] 📤 Notificação de início de partida enviada para ${destination}`
-      );
-    } catch (error) {
-      console.error(
-        `[WEBSOCKET] ❌ Erro ao enviar notificação de início de partida:`,
+        `[WEBSOCKET] ❌ Erro ao enviar início de partida:`,
         error
       );
     }
@@ -371,35 +347,14 @@ class WebsocketService {
     console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
   }
 
-  cleanupSubscriptions(roomId) {
-    const joinKey = `join-${roomId}`;
-    const exitKey = `exit-${roomId}`;
-
-    if (this.subscriptions.has(joinKey)) {
-      this.subscriptions.get(joinKey).unsubscribe();
-      this.subscriptions.delete(joinKey);
-      console.log(
-        `[WEBSOCKET] 🗑️ Inscrição cancelada para /topic/rooms/${roomId}/join`
-      );
-    }
-
-    if (this.subscriptions.has(exitKey)) {
-      this.subscriptions.get(exitKey).unsubscribe();
-      this.subscriptions.delete(exitKey);
-      console.log(
-        `[WEBSOCKET] 🗑️ Inscrição cancelada para /topic/rooms/${roomId}/exit`
-      );
-    }
-    if (this.subscriptions.has(`timer-${roomId}`)) {
-      this.subscriptions.get(`timer-${roomId}`).unsubscribe();
-      this.subscriptions.delete(`timer-${roomId}`);
-      console.log(`[WEBSOCKET] 🧹 Desinscrito de /topic/rooms/${roomId}/timer`);
-    }
-  }
-
-  subscribeToGameStart(roomId, onGameStart) {
-    const subscriptionKey = `game-start-${roomId}`;
-    const destination = `/topic/rooms/${roomId}/game-start`;
+  /**
+   * Assina contagem regressiva antes do quiz começar
+   * @param {string} roomId - ID da sala
+   * @param {function} onCountdownUpdate - Callback que recebe o tempo restante
+   */
+  subscribeToStartMatchCountdown(roomId, onCountdownUpdate) {
+    const subscriptionKey = `start-match-countdown-${roomId}`;
+    const destination = `/topic/room/${roomId}/start-match-countdown`;
 
     if (!this.client || !this.client.connected) {
       console.error(
@@ -417,12 +372,15 @@ class WebsocketService {
       try {
         const data = JSON.parse(message.body);
         console.log(
-          `[WEBSOCKET] 📨 Jogo iniciado! Navegando para quiz...`,
-          data
+          `[WEBSOCKET] 📨 Start match countdown update:`,
+          data.timeRemainingInSeconds
         );
-        onGameStart(data);
+        onCountdownUpdate(data.timeRemainingInSeconds);
       } catch (error) {
-        console.error(`[WEBSOCKET] ❌ Erro ao processar game start:`, error);
+        console.error(
+          `[WEBSOCKET] ❌ Erro ao processar start match countdown:`,
+          error
+        );
       }
     });
 
@@ -430,9 +388,52 @@ class WebsocketService {
     console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
   }
 
+  /**
+   * Assina recebimento de questões
+   * @param {string} roomId - ID da sala
+   * @param {function} onQuestionReceived - Callback que recebe os dados da questão
+   */
+  subscribeToQuestion(roomId, onQuestionReceived) {
+    const subscriptionKey = `question-${roomId}`;
+    const destination = `/topic/room/${roomId}/question`;
+
+    if (!this.client || !this.client.connected) {
+      console.error(
+        `[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`
+      );
+      return;
+    }
+
+    if (this.subscriptions.has(subscriptionKey)) {
+      console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+      return;
+    }
+
+    const subscription = this.client.subscribe(destination, (message) => {
+      try {
+        const data = JSON.parse(message.body);
+        console.log(`[WEBSOCKET] 📨 Nova questão recebida:`, data);
+        onQuestionReceived(data);
+      } catch (error) {
+        console.error(
+          `[WEBSOCKET] ❌ Erro ao processar questão recebida:`,
+          error
+        );
+      }
+    });
+
+    this.subscriptions.set(subscriptionKey, subscription);
+    console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+  }
+
+  /**
+   * Assina contagem regressiva das questões
+   * @param {string} roomId - ID da sala
+   * @param {function} onCountdownUpdate - Callback que recebe o tempo restante
+   */
   subscribeToQuestionCountdown(roomId, onCountdownUpdate) {
     const subscriptionKey = `question-countdown-${roomId}`;
-    const destination = `/topic/rooms/${roomId}/question-countdown`;
+    const destination = `/topic/room/${roomId}/question-countdown`;
 
     if (!this.client || !this.client.connected) {
       console.error(
@@ -455,8 +456,11 @@ class WebsocketService {
     const subscription = this.client.subscribe(destination, (message) => {
       try {
         const data = JSON.parse(message.body);
-        console.log(`[WEBSOCKET] 📨 Question countdown update:`, data);
-        onCountdownUpdate(data);
+        console.log(
+          `[WEBSOCKET] 📨 Question countdown update:`,
+          data.timeRemainingInSeconds
+        );
+        onCountdownUpdate(data.timeRemainingInSeconds);
       } catch (error) {
         console.error(`[WEBSOCKET] ❌ Erro ao processar countdown:`, error);
       }
@@ -465,6 +469,67 @@ class WebsocketService {
     this.subscriptions.set(subscriptionKey, subscription);
     console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
   }
+
+  /**
+   * Assina início do jogo (game start)
+   * @param {string} roomId - ID da sala
+   * @param {function} onGameStart - Callback que recebe os dados do início do jogo
+   */
+  subscribeToGameStart(roomId, onGameStart) {
+    const subscriptionKey = `game-start-${roomId}`;
+    const destination = `/topic/room/${roomId}/game-start`;
+
+    if (!this.client || !this.client.connected) {
+      console.error(
+        `[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`
+      );
+      return;
+    }
+
+    if (this.subscriptions.has(subscriptionKey)) {
+      console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
+      return;
+    }
+
+    const subscription = this.client.subscribe(destination, (message) => {
+      try {
+        const data = JSON.parse(message.body);
+        console.log(`[WEBSOCKET] 📨 Game start recebido:`, data);
+        onGameStart(data);
+      } catch (error) {
+        console.error(`[WEBSOCKET] ❌ Erro ao processar game start:`, error);
+      }
+    });
+
+    this.subscriptions.set(subscriptionKey, subscription);
+    console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
+  }
+
+  /**
+   * Limpa todas as subscrições relacionadas à uma sala
+   * @param {string} roomId - ID da sala
+   */
+  cleanupRoomSubscriptions(roomId) {
+    const keys = [
+      `join-${roomId}`,
+      `exit-${roomId}`,
+      `timer-${roomId}`,
+      `start-match-countdown-${roomId}`,
+      `question-${roomId}`,
+      `question-countdown-${roomId}`,
+      `game-start-${roomId}`, 
+    ];
+
+    keys.forEach((key) => {
+      if (this.subscriptions.has(key)) {
+        this.subscriptions.get(key).unsubscribe();
+        this.subscriptions.delete(key);
+        console.log(`[WEBSOCKET] 🗑️ Inscrição cancelada: ${key}`);
+      }
+    });
+  }
+
+
 }
 
 export default new WebsocketService();
