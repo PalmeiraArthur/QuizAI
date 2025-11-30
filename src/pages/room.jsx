@@ -125,7 +125,7 @@ function Room() {
     fetchRoom();
 
     return () => {
-      webSocketService.cleanupSubscriptions(roomId);
+      webSocketService.cleanupRoomSubscriptions(roomId);
     };
   }, [roomId, navigate, handlePlayerJoin, handlePlayerExit, handleGameStart]);
 

@@ -133,7 +133,7 @@ function PlayQuiz() {
 
     return () => {
       const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
-      if (roomId) webSocketService.cleanupSubscriptions(roomId);
+      if (roomId) webSocketService.cleanupRoomSubscriptions(roomId);
     };
   }, [roomIdQuery]);
 
