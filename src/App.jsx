@@ -8,6 +8,9 @@ import Settings from './pages/settings'
 import Room from './pages/room'
 import FindRooms from './pages/findRooms'
 
+// Temporário, teste do timer
+import TimerTestPage from './pages/TimerTestPage'
+
 const ProtectedRoute = ({ children }) => {
   const userId = localStorage.getItem('userId');
 
@@ -48,7 +51,11 @@ function App() {
         <Route path="/sala/:roomId" element={<ProtectedRoute> <Room /> </ProtectedRoute>} />
 
         <Route path="/configuracoes" element={<ProtectedRoute> <Settings /> </ProtectedRoute>} />
-       
+
+        {/* Página para testar o timer (temporária) */}
+        <Route path="/timer-test" element={ <TimerTestPage /> } />
+        {/*  */}
+
         <Route path="*" element={localStorage.getItem('userId') ? <Navigate to="/" /> : <Navigate to="/user" />} />
 
       </Routes>
