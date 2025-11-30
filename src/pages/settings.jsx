@@ -36,8 +36,10 @@ function Settings() {
                 setMasterVolume(clamped);
                 setVolumePercent(Math.round(clamped * 100));
             } else {
-                const mv = getMasterVolume();
-                setVolumePercent(Math.round(mv * 100));
+                // If no saved volume, initialize to 50%
+                const defaultVolume = 0.5;
+                setMasterVolume(defaultVolume);
+                setVolumePercent(Math.round(defaultVolume * 100));
             }
         } catch (err) {
             console.warn('Settings: failed to read soundVolume', err);
