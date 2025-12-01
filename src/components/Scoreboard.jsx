@@ -7,18 +7,6 @@ const Scoreboard = ({
   roomOwnerId,
   userId
 }) => {
-    function increasePoints()
-    {
-        websocketService.sendPlayerScore(roomId, playerScoreId, 10)
-    }
-    function decreasePoints()
-    {
-        websocketService.sendPlayerScore(roomId, playerScoreId, -10)
-    }
-
-    const playerScoreId = localStorage.getItem('scoreId');
-
-
   return (
     <div className="rounded-md w-[211px]">
 
@@ -58,13 +46,6 @@ const Scoreboard = ({
                   <p className="text-gray-300 text-sm">Host</p>
                 )}
               </div>
-
-
-              {/* TESTE REMOVER DEPOIS */}
-              <p onClick={increasePoints}>up</p>
-              <p onClick={decreasePoints}>down</p>
-              {/* TESTE REMOVER DEPOIS */}
-
 
               <p className="text-white font-semibold ml-auto">
                   {score}
