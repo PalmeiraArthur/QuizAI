@@ -31,6 +31,8 @@ function ConnectionHub() {
             localStorage.setItem(`room_${newRoom.id}`, JSON.stringify(roomData));
             console.log("FRONTEND: Dados da sala salvos no localStorage.");
 
+            localStorage.setItem('scoreId', roomData.ownerScoreboard.id);
+
             await webSocketService.connect();
             console.log("FRONTEND: Se conectou com o websocket.");
 
