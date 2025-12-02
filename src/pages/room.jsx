@@ -160,10 +160,7 @@ function Room() {
 
             const rem = countdown?.timeRemainingInSeconds ?? 0;
             if (rem > 0) {
-              const quizIdToUse = roomDataToUse?.quizId || quiz?.id;
-              if (quizIdToUse) {
-                navigate(`/jogar-quiz/${quizIdToUse}?roomId=${roomId}`);
-              }
+              navigate(`/jogar-quiz/${roomId}?roomId=${roomId}`);
             }
           } catch (e) {
             console.warn('Erro processando start match countdown na sala', e);
@@ -173,17 +170,7 @@ function Room() {
         // Se o backend enviar diretamente a primeira questão, navegar também
         webSocketService.subscribeToQuestion(roomId, (questionPayload) => {
           try {
-            const quizIdToUse = roomDataToUse?.quizId || quiz?.id;
-            if (quizIdToUse) {
-              // Salva a primeira questão recebida temporariamente para o player que navegará
-              try {
-                localStorage.setItem(`lastQuestion_${quizIdToUse}`, JSON.stringify(questionPayload));
-              } catch (e) {
-                console.warn('Não foi possível salvar lastQuestion no localStorage', e);
-              }
-
-              navigate(`/jogar-quiz/${quizIdToUse}?roomId=${roomId}`);
-            }
+            navigate(`/jogar-quiz/${roomId}?roomId=${roomId}`);
           } catch (e) {
             console.warn('Erro ao processar question WS na sala', e);
           }

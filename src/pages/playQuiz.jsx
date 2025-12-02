@@ -54,12 +54,6 @@ function PlayQuiz() {
       const storedIsHost = localStorage.getItem('isHost') === 'true';
       setIsHost(storedIsHost);
 
-      if (!savedQuiz) {
-        alert('Quiz não encontrado!');
-        navigate('/');
-        return;
-      }
-
       const quizData = JSON.parse(savedQuiz);
       // Normaliza formato das questões retornadas pelo backend (questionId/description)
       const questionsArray = Array.from(quizData.questions || []).map(q => ({
@@ -129,16 +123,7 @@ function PlayQuiz() {
 
   const handlePreQuizTimerComplete = useCallback(async () => {
     setShowPreQuizTimer(false);
-    if (isHost && roomIdQuery) {
-      try {
-        await webSocketService.connect();
-        const playerId = localStorage.getItem('userId');
-        webSocketService.sendStartMatch(roomIdQuery, playerId);
-      } catch (error) {
-        console.error("Erro ao enviar sendStartMatch:", error);
-      }
-    }
-  }, [isHost, roomIdQuery]);
+  });
 
   // Timer Pre-Quiz
   useEffect(() => {
@@ -349,10 +334,7 @@ function PlayQuiz() {
 
   const handleNextQuestion = useCallback((newQuestionId) => {
     console.log('[DEBUG] 1. handleNextQuestion() foi chamado.');
-    if (!quiz || isTransitioningRef.current) {
-      console.log('[DEBUG] ❌ handleNextQuestion BLOQUEADO.', { hasQuiz: !!quiz, isTransitioning: isTransitioningRef.current });
-      return;
-    }
+
     console.log('[DEBUG] 2. Travando a transição (isTransitioningRef = true).');
     isTransitioningRef.current = true;
 
@@ -482,8 +464,6 @@ function PlayQuiz() {
         </div>
      )
   }
-
-  if (!quiz || !quiz.questions[currentQuestionIndex]) return <div className="min-h-screen bg-darkGunmetal flex items-center justify-center text-white">Carregando...</div>;
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
   const answersArray = Array.from(currentQuestion.answers);
