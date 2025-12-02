@@ -4,7 +4,7 @@ import roomService from '../services/roomService';
 import webSocketService from '../services/websocketService';
 import ToggleSwitch from '../components/toggleSwitch';
 import { StepBack } from 'lucide-react';
-import Scoreboard from '../components/scoreboard';
+import Scoreboard from '../components/Scoreboard';
 
 function Room() {
   const navigate = useNavigate();

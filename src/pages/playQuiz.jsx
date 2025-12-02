@@ -34,7 +34,7 @@ function PlayQuiz() {
   const [showPreQuizTimer, setShowPreQuizTimer] = useState(true);
   const [preQuizTimeLeft, setPreQuizTimeLeft] = useState(5);
   const [questionTimeLeft, setQuestionTimeLeft] = useState(0);
-  const [questionTimeLimit, setQuestionTimeLimit] = useState(30);
+  const [questionTimeLimit, setQuestionTimeLimit] = useState(0);
   const [hasReceivedQuestion, setHasReceivedQuestion] = useState(false);
   const [lastReceivedQuestionId, setLastReceivedQuestionId] = useState(null);
 
@@ -43,6 +43,7 @@ function PlayQuiz() {
 
   const isTransitioningRef = useRef(false);
   const currentQuestionIndexRef = useRef(currentQuestionIndex);
+  const isInitialQuestionRef = useRef(true); // ✅ Ref para controlar a primeira questão
 
   // keep ref in sync with state to read latest value inside callbacks
   useEffect(() => { currentQuestionIndexRef.current = currentQuestionIndex }, [currentQuestionIndex]);
@@ -71,35 +72,6 @@ function PlayQuiz() {
       }));
 
       setQuiz({ id: quizData.id, topic: quizData.topic, questions: questionsArray });
-
-      // Se existe uma questão recebida recentemente (salva pela sala antes da navegação), aplica-a
-      try {
-        const lastQuestionRaw = localStorage.getItem(`lastQuestion_${quizData.id}`);
-        if (lastQuestionRaw) {
-          const lastQuestion = JSON.parse(lastQuestionRaw);
-          const qId = lastQuestion?.questionId || lastQuestion?.id;
-          // Normaliza e aplica a questão ao quiz (se corresponder a uma existente)
-          setQuiz(prev => {
-            if (!prev) return prev;
-            const questions = Array.from(prev.questions || []);
-            const idx = questions.findIndex(q => String(q.id) === String(qId));
-            const mapped = {
-              id: qId,
-              value: lastQuestion.description ?? lastQuestion.value ?? '',
-              answers: Array.from(lastQuestion.answers || []).map(a => ({ answerId: a.answerId ?? a.id, description: a.description ?? a.value ?? '' }))
-            };
-            if (idx >= 0) {
-              questions[idx] = { ...questions[idx], ...mapped };
-              // define o índice atual para a questão recebida
-              setCurrentQuestionIndex(idx);
-              setQuestionNumber(idx + 1);
-            }
-            // remove o lastQuestion do storage para evitar reaplicação
-            try { localStorage.removeItem(`lastQuestion_${quizData.id}`); } catch(e) {}
-            return { ...prev, questions };
-          });
-        }
-      } catch (e) { console.warn('Erro aplicando lastQuestion:', e); }
 
       const storedScoreId = localStorage.getItem('scoreId');
       if (storedScoreId) {
@@ -206,55 +178,14 @@ function PlayQuiz() {
 
         webSocketService.subscribeToQuestion(roomId, (questionData) => {
           try {
-            console.log('[PlayQuiz WS] 📨 question received:', questionData);
-            // Atualiza questionTime e conteúdo da questão conforme enviado pelo backend
+            console.log('[PlayQuiz WS] 📨 question received, updating state:', questionData);
             const qId = questionData?.questionId || questionData?.id;
             const totalTime = questionData?.totalTimeInSeconds ?? questionTimeLimit;
 
-            // Marca que recebemos uma questão do servidor e guarda o id (autoridade)
             setHasReceivedQuestion(true);
             setLastReceivedQuestionId(qId);
             setQuestionTimeLimit(totalTime);
             setQuestionTimeLeft(totalTime);
-
-            // Atualiza o quiz local (substitui a questão correspondente se existir)
-            // e, de forma determinística, atualiza o índice atual usando o estado anterior
-            setQuiz(prev => {
-              if (!prev) return prev;
-              const questions = Array.from(prev.questions || []);
-              const idx = questions.findIndex(q => String(q.id) === String(qId));
-              if (idx >= 0) {
-                questions[idx] = {
-                  ...questions[idx],
-                  value: questionData.description ?? questions[idx].value,
-                  answers: questionData.answers ?? questions[idx].answers,
-                };
-                // Atualiza o índice de questão usando o resultado da busca (evita closures com estado stale)
-                setCurrentQuestionIndex(idx);
-                currentQuestionIndexRef.current = idx;
-                // Define o número da questão exibida com base no índice recebido
-                setQuestionNumber(idx + 1);
-                console.log('[PlayQuiz] aplicado questionId -> index', { qId, idx });
-                return { ...prev, questions };
-              }
-              // Se a questão não estiver no quiz local, apenas tenta anexá-la ao final (defensivo)
-              console.warn('[PlayQuiz] questionId não encontrado no quiz local, adicionando temporariamente', qId);
-              const mapped = {
-                id: qId,
-                value: questionData.description ?? '',
-                answers: questionData.answers ?? []
-              };
-              const newQuestions = [...questions, mapped];
-              const newIdx = newQuestions.length - 1;
-              setCurrentQuestionIndex(newIdx);
-              currentQuestionIndexRef.current = newIdx;
-              setQuestionNumber(newIdx + 1);
-              return { ...prev, questions: newQuestions };
-            });
-
-            setSelectedAnswer(null);
-            setIsAnswerSubmitted(false);
-            setCorrectAnswer(null);
           } catch (e) {
             console.warn('Erro processando questão WS', e);
           }
@@ -268,6 +199,17 @@ function PlayQuiz() {
             setQuestionTimeLeft(rem);
             setQuestionTimeLimit(timeData?.totalTimeInSeconds ?? questionTimeLimit);
             if (rem <= 0 && !isAnswerSubmitted) handleQuestionTimeout();
+            const timeRemaining = timeData?.timeRemainingInSeconds ?? 0;
+            const totalTime = timeData?.totalTimeInSeconds;
+
+            // Atualiza o tempo restante e o tempo total com os dados do backend
+            setQuestionTimeLeft(timeRemaining);
+            if (typeof totalTime === 'number') {
+              setQuestionTimeLimit(totalTime);
+            }
+
+            // Se o backend informar que o tempo acabou, e a resposta ainda não foi enviada, aciona o timeout.
+            if (timeRemaining <= 0 && !isAnswerSubmitted) handleQuestionTimeout();
           } catch (e) {
             console.warn('Erro processando question countdown', e);
           }
@@ -282,6 +224,31 @@ function PlayQuiz() {
         if (roomId) webSocketService.cleanupRoomSubscriptions(roomId);
     };
   }, [roomIdQuery]);
+
+  // ✅ Efeito para avançar a questão DEPOIS que o estado do quiz for atualizado pelo WebSocket.
+  // Isso evita a race condition de chamar handleNextQuestion antes do quiz estar pronto.
+  useEffect(() => {
+    if (!quiz || !hasReceivedQuestion) return;
+
+    if (isInitialQuestionRef.current) {
+      console.log('[DEBUG] ✅ Primeira questão recebida. Preparando o jogo, mas sem avançar o índice.');
+      // Sincroniza o ID da primeira questão para permitir a resposta.
+      setQuiz(prevQuiz => {
+        if (!prevQuiz) return prevQuiz;
+        const newQuestions = [...prevQuiz.questions];
+        if (newQuestions[0]) {
+          newQuestions[0].id = lastReceivedQuestionId;
+          console.log(`[DEBUG] ID da primeira questão (índice 0) sincronizado para ${lastReceivedQuestionId}`);
+        }
+        return { ...prevQuiz, questions: newQuestions };
+      });
+      isInitialQuestionRef.current = false; // Marca que a primeira questão já foi processada
+    } else {
+      console.log('[DEBUG] ✅ Nova questão recebida. Chamando handleNextQuestion() para avançar a UI.');
+      handleNextQuestion(lastReceivedQuestionId);
+    }
+  }, [lastReceivedQuestionId]); // A dependência principal é a chegada de uma nova questão.
+
 
   // ----------------------------------------------------------------------
   // LÓGICA DE RESPOSTA ATUALIZADA
@@ -317,6 +284,8 @@ function PlayQuiz() {
       setSelectedAnswer(null);
       return;
     }
+
+    console.log(`[DEBUG] 🙋‍♂️ Respondendo à questão atual: Nº ${questionNumber}`);
 
     try {
       // Chamada unificada ao AnswerController
@@ -360,12 +329,12 @@ function PlayQuiz() {
 
       setTimeout(() => {
         setShowPointsAnimation(false);
-        // Em partidas por sala, o próximo avanço deve ser controlado pelo servidor
-        const effectiveRoomId = roomIdQuery || localStorage.getItem('currentRoomId');
-        if (!effectiveRoomId) {
+        // Em partidas multiplayer, o avanço é ditado pelo servidor enviando a próxima questão.
+        // Em jogos solo, avançamos localmente.
+        if (!roomIdQuery) {
+          console.log('[DEBUG] ⏳ Jogo solo. Avançando para a próxima questão localmente após 3s.');
           handleNextQuestion();
         } else {
-          // apenas limpa a animação e aguarda o servidor enviar a próxima questão
           console.log('[PlayQuiz] aguardando próxima questão do servidor (multiplayer)', { currentQuestionIndex: currentQuestionIndexRef.current, lastReceivedQuestionId });
         }
       }, 3000);
@@ -378,31 +347,51 @@ function PlayQuiz() {
     }
   };
 
-  const handleNextQuestion = useCallback(() => {
+  const handleNextQuestion = useCallback((newQuestionId) => {
+    console.log('[DEBUG] 1. handleNextQuestion() foi chamado.');
     if (!quiz || isTransitioningRef.current) {
-      console.log('[PlayQuiz] handleNextQuestion blocked', { hasQuiz: !!quiz, isTransitioning: isTransitioningRef.current });
+      console.log('[DEBUG] ❌ handleNextQuestion BLOQUEADO.', { hasQuiz: !!quiz, isTransitioning: isTransitioningRef.current });
       return;
     }
+    console.log('[DEBUG] 2. Travando a transição (isTransitioningRef = true).');
     isTransitioningRef.current = true;
 
     setCurrentQuestionIndex(prevIndex => {
       const nextIndex = prevIndex + 1;
-      console.log('[PlayQuiz] avançando localmente de índice', { prevIndex, nextIndex, total: quiz.questions.length });
+      console.log('[DEBUG] 3. Dentro do setCurrentQuestionIndex. Avançando do índice', prevIndex, 'para', nextIndex);
+
       if (nextIndex < quiz.questions.length) {
+        currentQuestionIndexRef.current = nextIndex;
+
+        // Atualiza o ID da questão no quiz local para garantir a sincronia
+        if (newQuestionId) {
+          setQuiz(prevQuiz => {
+            const newQuestions = [...prevQuiz.questions];
+            if (newQuestions[nextIndex]) {
+              newQuestions[nextIndex].id = newQuestionId;
+              console.log(`[DEBUG] ID da questão no índice ${nextIndex} atualizado para ${newQuestionId}`);
+            }
+            return { ...prevQuiz, questions: newQuestions };
+          });
+        }
+
+        setQuestionNumber(nextIndex + 1);
+        // Limpa o estado para a nova questão
         setSelectedAnswer(null);
         setCorrectAnswer(null);
         setIsAnswerSubmitted(false);
-        isTransitioningRef.current = false;
-        currentQuestionIndexRef.current = nextIndex;
-        setQuestionNumber(nextIndex + 1);
+
+        console.log('[DEBUG] 4. Próxima questão é a de índice', nextIndex, '. UI deve exibir a questão Nº', nextIndex + 1);
         return nextIndex;
       } else {
+        console.log('[DEBUG] 🏁 Fim do quiz. Mostrando resultados.');
         setShowResults(true);
+        // Libera a trava aqui, pois não haverá mais transição de questão.
         isTransitioningRef.current = false;
         return prevIndex;
       }
     });
-  }, [quiz]);
+  }, [quiz, setQuiz]);
 
   const handleQuestionTimeout = useCallback(() => {
     if (isAnswerSubmitted || isTransitioningRef.current) {
@@ -413,36 +402,31 @@ function PlayQuiz() {
     setIsAnswerSubmitted(true);
     setSelectedAnswer(null);
     setCorrectAnswer(null);
-    handleNextQuestion();
-  }, [isAnswerSubmitted, handleNextQuestion]);
+
+    // Em modo solo, o timeout avança. Em multiplayer, o servidor dita o ritmo,
+    // mas se for a ÚLTIMA questão, precisamos avançar para a tela de resultados.
+    const isLastQuestion = quiz && currentQuestionIndexRef.current >= quiz.questions.length - 1;
+    if (!roomIdQuery || (roomIdQuery && isLastQuestion)) {
+      console.log(`[PlayQuiz] Timeout: ${isLastQuestion ? 'última questão' : 'modo solo'}. Avançando...`);
+      handleNextQuestion();
+    }
+  }, [isAnswerSubmitted, handleNextQuestion, quiz, roomIdQuery]);
 
   // Timers da Questão e Cleanup (Mantidos iguais ao original, resumidos aqui)
   useEffect(() => {
     // Não inicializa timers locais enquanto estivermos no pré-quiz
     // ou enquanto não tivermos recebido a primeira questão do backend.
-    if (showPreQuizTimer || !quiz || !hasReceivedQuestion) return;
-    setQuestionTimeLimit(30);
-    setQuestionTimeLeft(30);
+    console.log('[DEBUG] 🔄 useEffect [currentQuestionIndex] disparado. Índice atual:', currentQuestionIndex);
+    if (showPreQuizTimer || !quiz) return;
+
+    // Se não for uma partida multiplayer, podemos definir um padrão.
+    // Em multiplayer, esperamos o backend ditar o tempo.
+    if (!roomIdQuery) setQuestionTimeLimit(30);
+    
+    console.log('[DEBUG] 5. Liberando a trava de transição (isTransitioningRef = false).');
+    isTransitioningRef.current = false;
     setIsAnswerSubmitted(false);
   }, [currentQuestionIndex, showPreQuizTimer, quiz]);
-
-  
-
-  // Timer Local Fallback
-  useEffect(() => {
-    // Só executa timer local de fallback se já tivermos recebido a questão do backend
-    if (showPreQuizTimer || !hasReceivedQuestion || questionTimeLeft <= 0 || isAnswerSubmitted) return;
-    const localTimerId = setInterval(() => {
-      setQuestionTimeLeft(prev => {
-        if (prev <= 1) {
-          if (!isAnswerSubmitted) handleQuestionTimeout();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(localTimerId);
-  }, [showPreQuizTimer, isAnswerSubmitted, questionTimeLeft, handleQuestionTimeout]);
 
 
   const handleFinishAndCleanup = async () => {
@@ -455,8 +439,14 @@ function PlayQuiz() {
       setShowResults(false);
       setAnsweredQuestions([]);
       setIsAnswerSubmitted(false);
-      if (id) navigate(`/quiz/${id}`);
-      else navigate('/');
+
+      // Se o quiz foi jogado em uma sala (temos roomIdQuery), volta para o lobby.
+      // Caso contrário, volta para a página inicial.
+      if (roomIdQuery) {
+        navigate(`/sala/${roomIdQuery}`);
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       console.error(err);
       navigate('/');
@@ -526,7 +516,14 @@ function PlayQuiz() {
                <div className="text-right relative flex items-center gap-6">
                   {/* Timer da questão */}
                   <div className="flex flex-col items-center">
-                    <Timer initialTime={questionTimeLimit} currentTime={questionTimeLeft} size="sm" strokeWidth={6} circleColor="#3a3a3a" progressColor={questionTimeLeft <= 5 ? '#ef4444' : '#4CAF50'} textColor="#ffffff" onComplete={handleQuestionTimeout} />
+                    <Timer 
+                      initialTime={questionTimeLimit > 0 ? questionTimeLimit : 1} 
+                      currentTime={questionTimeLeft} 
+                      size="sm" 
+                      strokeWidth={6} 
+                      circleColor="#3a3a3a" 
+                      progressColor={questionTimeLeft <= 5 ? '#ef4444' : '#4CAF50'} 
+                      textColor="#ffffff" onComplete={handleQuestionTimeout} />
                   </div>
                   {/* Score e animação */}
                   <div>

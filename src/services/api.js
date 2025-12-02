@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
     baseURL: 'http://localhost:8080',
-    timeout: 30000,
+    timeout: 60000, // Alterei para 60 segundos
     headers: {
         'Content-Type': undefined,
         'Accept': 'application/json'
