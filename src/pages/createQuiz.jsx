@@ -87,7 +87,7 @@ function CreateQuiz() {
     const handleCancel = () => {
         // Se veio de uma sala, volta para ela; senão vai para home
         if (roomId) {
-            navigate(`/room/${roomId}`);
+            navigate(`/sala/${roomId}`);
         } else {
             navigate('/');
         }

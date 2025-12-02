@@ -72,7 +72,7 @@ function Room() {
     const quizId = gameStartPayload.quizId;
 
     // Navegar todos os players para o quiz
-    navigate(`/play-quiz/${quizId}?roomId=${roomId}`);
+       navigate(`/jogar-quiz/${quizId}?roomId=${roomId}`);
   }, [navigate, roomId]);
 
 
@@ -149,8 +149,54 @@ function Room() {
         webSocketService.subscribeToPlayerExits(roomId, handlePlayerExit);
         webSocketService.subscribeToScoreUpdates(roomId, handleScoreUpdate);
 
-        // 🎮 NOVO: Inscrever para receber notificação de início de jogo
-        webSocketService.subscribeToGameStart(roomId, handleGameStart);
+        // Assinar contagem regressiva antes do início da partida.
+        // Salvamos no localStorage e navegamos para a tela do quiz assim que a contagem começar,
+        // para garantir que os jogadores vejam o timer pré-quiz antes da primeira questão.
+        webSocketService.subscribeToStartMatchCountdown(roomId, (countdown) => {
+          try {
+            // Guarda o payload para que a página do quiz possa inicializar o timer mesmo
+            // se a mensagem chegar antes da assinatura lá.
+            try { localStorage.setItem(`startMatchCountdown_${roomId}`, JSON.stringify(countdown)); } catch(e) { console.warn('Não foi possível salvar startMatchCountdown no localStorage', e); }
+
+            const rem = countdown?.timeRemainingInSeconds ?? 0;
+            if (rem > 0) {
+              const quizIdToUse = roomDataToUse?.quizId || quiz?.id;
+              if (quizIdToUse) {
+                navigate(`/jogar-quiz/${quizIdToUse}?roomId=${roomId}`);
+              }
+            }
+          } catch (e) {
+            console.warn('Erro processando start match countdown na sala', e);
+          }
+        });
+
+        // Se o backend enviar diretamente a primeira questão, navegar também
+        webSocketService.subscribeToQuestion(roomId, (questionPayload) => {
+          try {
+            const quizIdToUse = roomDataToUse?.quizId || quiz?.id;
+            if (quizIdToUse) {
+              // Salva a primeira questão recebida temporariamente para o player que navegará
+              try {
+                localStorage.setItem(`lastQuestion_${quizIdToUse}`, JSON.stringify(questionPayload));
+              } catch (e) {
+                console.warn('Não foi possível salvar lastQuestion no localStorage', e);
+              }
+
+              navigate(`/jogar-quiz/${quizIdToUse}?roomId=${roomId}`);
+            }
+          } catch (e) {
+            console.warn('Erro ao processar question WS na sala', e);
+          }
+        });
+
+          // Também assinar o countdown por questão para salvar caso chegue antes da página do quiz
+          webSocketService.subscribeToQuestionCountdown(roomId, (timeData) => {
+            try {
+              try { localStorage.setItem(`questionCountdown_${roomId}`, JSON.stringify(timeData)); } catch (e) { console.warn('Não foi possível salvar questionCountdown no localStorage', e); }
+            } catch (e) {
+              console.warn('Erro processando question-countdown na sala', e);
+            }
+          });
 
       } catch (error) {
         console.error("❌ Erro fatal ao carregar a sala:", error);
@@ -226,7 +272,11 @@ function Room() {
     }
 
     try {
-      navigate(`/jogar-quiz/${quizId}?roomId=${room.id}`);
+      // Envia pedido ao backend via WebSocket para iniciar a partida.
+      // O backend deve publicar a contagem regressiva e o game-start para navegar os players.
+      await webSocketService.connect();
+      webSocketService.sendStartMatch(room.id, userId);
+      // Não navegamos aqui — aguardamos o backend emitir `game-start` que chamará handleGameStart
 
     } catch (error) {
       console.error('❌ Erro ao iniciar jogo:', error);

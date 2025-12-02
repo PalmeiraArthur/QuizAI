@@ -354,7 +354,7 @@ class WebsocketService {
    */
   subscribeToStartMatchCountdown(roomId, onCountdownUpdate) {
     const subscriptionKey = `start-match-countdown-${roomId}`;
-    const destination = `/topic/room/${roomId}/start-match-countdown`;
+    const destination = `/topic/rooms/${roomId}/start-match-countdown`;
 
     if (!this.client || !this.client.connected) {
       console.error(
@@ -371,16 +371,11 @@ class WebsocketService {
     const subscription = this.client.subscribe(destination, (message) => {
       try {
         const data = JSON.parse(message.body);
-        console.log(
-          `[WEBSOCKET] 📨 Start match countdown update:`,
-          data.timeRemainingInSeconds
-        );
-        onCountdownUpdate(data.timeRemainingInSeconds);
+        console.log(`[WEBSOCKET] 📨 Start match countdown update:`, data);
+        // Passa o objeto inteiro para manter compatibilidade com consumidores
+        onCountdownUpdate(data);
       } catch (error) {
-        console.error(
-          `[WEBSOCKET] ❌ Erro ao processar start match countdown:`,
-          error
-        );
+        console.error(`[WEBSOCKET] ❌ Erro ao processar start match countdown:`, error);
       }
     });
 
@@ -395,7 +390,7 @@ class WebsocketService {
    */
   subscribeToQuestion(roomId, onQuestionReceived) {
     const subscriptionKey = `question-${roomId}`;
-    const destination = `/topic/room/${roomId}/question`;
+    const destination = `/topic/rooms/${roomId}/question`;
 
     if (!this.client || !this.client.connected) {
       console.error(
@@ -413,12 +408,10 @@ class WebsocketService {
       try {
         const data = JSON.parse(message.body);
         console.log(`[WEBSOCKET] 📨 Nova questão recebida:`, data);
+        // Passa o objeto completo (questionId, description, answers...)
         onQuestionReceived(data);
       } catch (error) {
-        console.error(
-          `[WEBSOCKET] ❌ Erro ao processar questão recebida:`,
-          error
-        );
+        console.error(`[WEBSOCKET] ❌ Erro ao processar questão recebida:`, error);
       }
     });
 
@@ -433,7 +426,7 @@ class WebsocketService {
    */
   subscribeToQuestionCountdown(roomId, onCountdownUpdate) {
     const subscriptionKey = `question-countdown-${roomId}`;
-    const destination = `/topic/room/${roomId}/question-countdown`;
+    const destination = `/topic/rooms/${roomId}/question-countdown`;
 
     if (!this.client || !this.client.connected) {
       console.error(
@@ -456,48 +449,11 @@ class WebsocketService {
     const subscription = this.client.subscribe(destination, (message) => {
       try {
         const data = JSON.parse(message.body);
-        console.log(
-          `[WEBSOCKET] 📨 Question countdown update:`,
-          data.timeRemainingInSeconds
-        );
-        onCountdownUpdate(data.timeRemainingInSeconds);
+        console.log(`[WEBSOCKET] 📨 Question countdown update:`, data);
+        // Passa o objeto inteiro para permitir acesso a totalTimeInSeconds, etc.
+        onCountdownUpdate(data);
       } catch (error) {
         console.error(`[WEBSOCKET] ❌ Erro ao processar countdown:`, error);
-      }
-    });
-
-    this.subscriptions.set(subscriptionKey, subscription);
-    console.log(`[WEBSOCKET] ✅ Inscrito em ${destination}`);
-  }
-
-  /**
-   * Assina início do jogo (game start)
-   * @param {string} roomId - ID da sala
-   * @param {function} onGameStart - Callback que recebe os dados do início do jogo
-   */
-  subscribeToGameStart(roomId, onGameStart) {
-    const subscriptionKey = `game-start-${roomId}`;
-    const destination = `/topic/room/${roomId}/game-start`;
-
-    if (!this.client || !this.client.connected) {
-      console.error(
-        `[WEBSOCKET] ❌ Client não conectado. Não foi possível inscrever em ${destination}`
-      );
-      return;
-    }
-
-    if (this.subscriptions.has(subscriptionKey)) {
-      console.warn(`[WEBSOCKET] ⚠️ Já inscrito em ${destination}.`);
-      return;
-    }
-
-    const subscription = this.client.subscribe(destination, (message) => {
-      try {
-        const data = JSON.parse(message.body);
-        console.log(`[WEBSOCKET] 📨 Game start recebido:`, data);
-        onGameStart(data);
-      } catch (error) {
-        console.error(`[WEBSOCKET] ❌ Erro ao processar game start:`, error);
       }
     });
 
@@ -517,7 +473,7 @@ class WebsocketService {
       `start-match-countdown-${roomId}`,
       `question-${roomId}`,
       `question-countdown-${roomId}`,
-      `game-start-${roomId}`, 
+      `game-start-${roomId}`,
     ];
 
     keys.forEach((key) => {
