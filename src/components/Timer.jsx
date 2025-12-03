@@ -39,7 +39,11 @@ const Timer = ({
     }
   }, [initialTime, isControlled]);
 
-  const timeLeft = isControlled ? currentTime : localTime;
+  // Normaliza valores para evitar NaN quando props forem undefined/null
+  const safeInitial = Number(initialTime) || 0;
+  const safeCurrent = Number(isControlled ? currentTime : localTime) || 0;
+
+  const timeLeft = safeCurrent;
 
   const sizeMap = {
     sm: 80,
@@ -48,10 +52,12 @@ const Timer = ({
     xl: 240,
   };
   const size = sizeMap[sizeProp] || sizeProp;
-  
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = initialTime > 0 ? circumference - (timeLeft / initialTime) * circumference : 0;
+  // Garante que size e strokeWidth sejam números válidos antes do cálculo
+  const numericSize = Number(size) || 0;
+  const numericStroke = Number(strokeWidth) || 0;
+  const radius = numericSize > numericStroke ? (numericSize - numericStroke) / 2 : 0;
+  const circumference = radius > 0 ? 2 * Math.PI * radius : 0;
+  const strokeDashoffset = safeInitial > 0 && circumference > 0 ? circumference - (timeLeft / safeInitial) * circumference : 0;
 
 
   return (

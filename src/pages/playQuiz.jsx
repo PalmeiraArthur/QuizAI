@@ -54,18 +54,37 @@ function PlayQuiz() {
       const storedIsHost = localStorage.getItem('isHost') === 'true';
       setIsHost(storedIsHost);
 
-      const quizData = JSON.parse(savedQuiz);
-      // Normaliza formato das questões retornadas pelo backend (questionId/description)
-      const questionsArray = Array.from(quizData.questions || []).map(q => ({
-        id: q.questionId ?? q.id,
-        value: q.description ?? q.value ?? '',
-        answers: Array.from(q.answers || []).map(a => ({
-          answerId: a.answerId ?? a.id,
-          description: a.description ?? a.value ?? ''
-        }))
-      }));
+      // Se não houver quiz salvo localmente, não quebrar a montagem —
+      // vamos inicializar um objeto vazio e aguardar a primeira questão
+      // via WebSocket (o backend envia a questão atual assim que a partida começar).
+      let quizData = null;
+      if (savedQuiz) {
+        try {
+          quizData = JSON.parse(savedQuiz);
+        } catch (e) {
+          console.warn('Erro parseando quiz salvo:', e);
+          quizData = null;
+        }
+      }
 
-      setQuiz({ id: quizData.id, topic: quizData.topic, questions: questionsArray });
+      if (!quizData) {
+        console.warn(`Nenhum quiz local encontrado para quiz_${id}. Iremos aguardar dados via WebSocket.`);
+        // Inicializa um objeto mínimo para evitar acessos a null nas renderizações
+        setQuiz({ id: id, topic: '', questions: [] });
+      }
+      // Se houver quiz salvo, normaliza e aplica no estado
+      if (quizData) {
+        const questionsArray = Array.from(quizData.questions || []).map(q => ({
+          id: q.questionId ?? q.id,
+          value: q.description ?? q.value ?? '',
+          answers: Array.from(q.answers || []).map(a => ({
+            answerId: a.answerId ?? a.id,
+            description: a.description ?? a.value ?? ''
+          }))
+        }));
+
+        setQuiz({ id: quizData.id, topic: quizData.topic, questions: questionsArray });
+      }
 
       const storedScoreId = localStorage.getItem('scoreId');
       if (storedScoreId) {
@@ -167,10 +186,45 @@ function PlayQuiz() {
             const qId = questionData?.questionId || questionData?.id;
             const totalTime = questionData?.totalTimeInSeconds ?? questionTimeLimit;
 
-            setHasReceivedQuestion(true);
-            setLastReceivedQuestionId(qId);
+            // Map answers once
+            const mappedAnswers = Array.from(questionData.answers || []).map(a => ({
+              answerId: a.answerId ?? a.id,
+              description: a.description ?? a.value ?? ''
+            }));
+
+            // Atualiza tempos primeiro
             setQuestionTimeLimit(totalTime);
             setQuestionTimeLeft(totalTime);
+
+            // Garante que a questão recebida esteja presente na lista local do quiz.
+            // Se já existir, substitui; se não existir, anexa ao final.
+            setQuiz(prev => {
+              try {
+                // Se não houver qualquer quiz local, inicializa com a questão recebida
+                if (!prev || !Array.isArray(prev.questions) || prev.questions.length === 0) {
+                  return { id: id, topic: '', questions: [{ id: qId, value: questionData.description ?? questionData.value ?? '', answers: mappedAnswers }] };
+                }
+
+                // Se a questão já existe (mesmo id), substitui os dados
+                const existsIndex = prev.questions.findIndex(q => String(q.id) === String(qId));
+                if (existsIndex !== -1) {
+                  const newQuestions = [...prev.questions];
+                  newQuestions[existsIndex] = { id: qId, value: questionData.description ?? questionData.value ?? '', answers: mappedAnswers };
+                  return { ...prev, questions: newQuestions };
+                }
+
+                // Caso contrário, anexa como próxima questão
+                return { ...prev, questions: [...prev.questions, { id: qId, value: questionData.description ?? questionData.value ?? '', answers: mappedAnswers }] };
+              } catch (e) {
+                console.warn('Erro ao sincronizar quiz local com questão recebida:', e);
+                return prev;
+              }
+            });
+
+            // Só após garantir que o quiz local foi atualizado, sinalizamos que recebemos a questão
+            setHasReceivedQuestion(true);
+            setLastReceivedQuestionId(qId);
+
           } catch (e) {
             console.warn('Erro processando questão WS', e);
           }
@@ -463,6 +517,15 @@ function PlayQuiz() {
             <Timer initialTime={5} currentTime={preQuizTimeLeft} size="lg" progressColor="#4CAF50" onComplete={handlePreQuizTimerComplete} />
         </div>
      )
+  }
+  // Se ainda não tivermos quiz ou questões carregadas, mostramos uma tela de espera
+  if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-darkGunmetal flex flex-col items-center justify-center text-center p-10">
+        <h2 className="text-white text-2xl font-medium mb-4">Aguardando início do jogo...</h2>
+        <p className="text-gray-400">Aguardando a primeira questão ser enviada pelo servidor.</p>
+      </div>
+    );
   }
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
