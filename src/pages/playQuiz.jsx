@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 
 // IMPORTANTE: Trocamos scoreService e questionService (para respostas) pelo answerService
-import answerService from '../services/answerService'; 
+import answerService from '../services/answerService';
 import webSocketService from '../services/websocketService';
 import clickSound from '../assets/sounds/click.mp3'
 import playSound from '../services/soundService';
@@ -113,26 +113,26 @@ function PlayQuiz() {
             } catch (e) {
               console.warn('Erro parseando startMatchCountdown salvo', e);
             }
-            try { localStorage.removeItem(`startMatchCountdown_${roomId}`); } catch(e) {}
+            try { localStorage.removeItem(`startMatchCountdown_${roomId}`); } catch (e) { }
           }
         }
       } catch (e) { console.warn('Erro aplicando startMatchCountdown salvo:', e); }
 
-        // Se houver um question-countdown salvo (chegou antes da montagem), aplica-o como fallback visual
-        try {
-          const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
-          if (roomId) {
-            const savedQCountdown = localStorage.getItem(`questionCountdown_${roomId}`);
-            if (savedQCountdown) {
-              try {
-                const qcd = JSON.parse(savedQCountdown);
-                const remQ = qcd?.timeRemainingInSeconds ?? 0;
-                if (remQ > 0) setQuestionTimeLeft(remQ);
-              } catch (e) { console.warn('Erro parseando questionCountdown salvo', e); }
-              try { localStorage.removeItem(`questionCountdown_${roomId}`); } catch(e) {}
-            }
+      // Se houver um question-countdown salvo (chegou antes da montagem), aplica-o como fallback visual
+      try {
+        const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
+        if (roomId) {
+          const savedQCountdown = localStorage.getItem(`questionCountdown_${roomId}`);
+          if (savedQCountdown) {
+            try {
+              const qcd = JSON.parse(savedQCountdown);
+              const remQ = qcd?.timeRemainingInSeconds ?? 0;
+              if (remQ > 0) setQuestionTimeLeft(remQ);
+            } catch (e) { console.warn('Erro parseando questionCountdown salvo', e); }
+            try { localStorage.removeItem(`questionCountdown_${roomId}`); } catch (e) { }
           }
-        } catch (e) { console.warn('Erro aplicando questionCountdown salvo:', e); }
+        }
+      } catch (e) { console.warn('Erro aplicando questionCountdown salvo:', e); }
     };
 
     initializeGame();
@@ -259,8 +259,8 @@ function PlayQuiz() {
     };
     setupWebsocket();
     return () => {
-        const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
-        if (roomId) webSocketService.cleanupRoomSubscriptions(roomId);
+      const roomId = roomIdQuery || localStorage.getItem('currentRoomId');
+      if (roomId) webSocketService.cleanupRoomSubscriptions(roomId);
     };
   }, [roomIdQuery]);
 
@@ -287,6 +287,24 @@ function PlayQuiz() {
       handleNextQuestion(lastReceivedQuestionId);
     }
   }, [lastReceivedQuestionId]); // A dependência principal é a chegada de uma nova questão.
+
+  // Watchdog: se parar de receber questões, finaliza o quiz automaticamente
+  useEffect(() => {
+    if (!roomIdQuery) return; // só faz sentido em MULTIPLAYER
+    if (!hasReceivedQuestion) return;
+
+    // Quanto tempo esperar antes de assumir "acabou o quiz"
+    const watchdogDelay = 11000; // 11 segundos após a última questão
+
+    const timer = setTimeout(() => {
+      console.warn("[Watchdog] Nenhuma nova questão recebida. Finalizando quiz.");
+      setShowResults(true);
+    }, watchdogDelay);
+
+    // Se uma nova questão chegar, cancela o timer
+    return () => clearTimeout(timer);
+
+  }, [lastReceivedQuestionId]);
 
 
   // ----------------------------------------------------------------------
@@ -343,7 +361,7 @@ function PlayQuiz() {
       setPointsEarned(pointsEarned);
       setCorrectAnswer(correctAnswerId); // Backend já devolve qual era a correta
       setLastAnswerCorrect(Boolean(playerAnswerId === correctAnswerId || pointsEarned > 0));
-      
+
       // Animação e Score Local
       setShowPointsAnimation(true);
       setScore(prevScore => prevScore + (pointsEarned || 0));
@@ -354,7 +372,7 @@ function PlayQuiz() {
           await webSocketService.connect();
           webSocketService.sendPlayerScore(effectiveRoomId, scoreId, pointsEarned || 0);
         } catch (wsErr) {
-            console.warn('WS Score Error', wsErr);
+          console.warn('WS Score Error', wsErr);
         }
       }
 
@@ -364,7 +382,7 @@ function PlayQuiz() {
         pointsEarned: pointsEarned || 0,
         correctAnswerId,
         isCorrect: Boolean(playerAnswerId === correctAnswerId || pointsEarned > 0)
-      }] );
+      }]);
 
       setTimeout(() => {
         setShowPointsAnimation(false);
@@ -458,7 +476,7 @@ function PlayQuiz() {
     // Se não for uma partida multiplayer, podemos definir um padrão.
     // Em multiplayer, esperamos o backend ditar o tempo.
     if (!roomIdQuery) setQuestionTimeLimit(30);
-    
+
     console.log('[DEBUG] 5. Liberando a trava de transição (isTransitioningRef = false).');
     isTransitioningRef.current = false;
     setIsAnswerSubmitted(false);
@@ -493,10 +511,10 @@ function PlayQuiz() {
 
   const getAnswerStyle = (answer) => {
     if (!isAnswerSubmitted) return 'bg-silver hover:border-plumpPurple text-raisinBlack hover:scale-102 cursor-pointer';
-    
+
     if (answer.answerId === selectedAnswer) {
-      return pointsEarned > 0 
-        ? 'bg-green-500 border-green-600 text-white scale-105' 
+      return pointsEarned > 0
+        ? 'bg-green-500 border-green-600 text-white scale-105'
         : 'bg-red-500 border-red-600 text-white scale-105';
     }
     if (correctAnswer && answer.answerId === correctAnswer) {
@@ -510,13 +528,26 @@ function PlayQuiz() {
   // que o 'getAnswerStyle' está sendo chamado corretamente nos botões.
 
   if (showPreQuizTimer) {
-     // ... renderiza timer inicial
-     return (
-        <div className="min-h-screen bg-darkGunmetal flex flex-col items-center justify-center text-center p-10">
-            <h2 className="text-white text-3xl font-bold mb-8">Preparado? O quiz vai começar!</h2>
-            <Timer initialTime={5} currentTime={preQuizTimeLeft} size="lg" progressColor="#4CAF50" onComplete={handlePreQuizTimerComplete} />
-        </div>
-     )
+    // ... renderiza timer inicial
+    return (
+      <div className="min-h-screen bg-darkGunmetal flex flex-col items-center justify-center text-center p-10">
+        <h2 className="text-white text-3xl font-bold mb-8">Preparado? O quiz vai começar!</h2>
+
+        <Timer
+          initialTime={5}
+          currentTime={preQuizTimeLeft}
+          size="lg"
+          onComplete={handlePreQuizTimerComplete}
+
+          // --- ADICIONE ESTAS PROPS ---
+          strokeWidth={0}             // Remove a espessura da linha
+          circleColor="transparent"   // Fundo do círculo transparente
+          progressColor="transparent" // Progresso transparente
+          textColor="#ffffff"         // Garante que o número fique branco (legível no fundo escuro)
+        // ----------------------------
+        />
+      </div>
+    )
   }
   // Se ainda não tivermos quiz ou questões carregadas, mostramos uma tela de espera
   if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
@@ -534,16 +565,31 @@ function PlayQuiz() {
   const progress = ((questionNumber) / quiz.questions.length) * 100;
 
   if (showResults) {
-    // ... renderiza tela de resultados (usar handleFinishAndCleanup no botão)
     return (
-        <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
-           {/* ... Seu JSX de resultado ... */}
-             <div className="text-6xl font-bold text-pistachio mb-4">{score} pontos</div>
-             <button onClick={handleFinishAndCleanup} className="bg-pistachio text-raisinBlack font-bold py-3 px-6 rounded-lg">Finalizar e Voltar</button>
-           {/* ... */}
+      <div className="min-h-screen bg-darkGunmetal flex flex-col justify-center items-center w-[1140px] gap-6">
+
+        {/* TOTAL DE QUESTÕES */}
+        <div className="text-xl text-gray-300 mb-6">
+          Total de questões: {quiz?.questions?.length || 0}
         </div>
-    )
+
+        {/* PONTUAÇÃO */}
+        <div className="text-6xl font-bold text-pistachio mb-4">
+          {score} pontos
+        </div>
+
+        <button
+          onClick={handleFinishAndCleanup}
+          className="bg-pistachio text-raisinBlack font-bold py-3 px-6 rounded-lg"
+        >
+          Finalizar e Voltar
+        </button>
+
+      </div>
+    );
   }
+
+
 
   return (
     <div className="min-h-screen bg-darkGunmetal flex justify-center w-[1140px]">
@@ -552,61 +598,61 @@ function PlayQuiz() {
           {/* Header e Score */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-               <div>
-                  <h2 className="text-white font-semibold text-[30px]">{quiz.topic}</h2>
-                  <span className="text-gray-400">Questão {questionNumber} de {quiz.questions.length}</span>
-               </div>
-               <div className="text-right relative flex items-center gap-6">
-                  {/* Timer da questão */}
-                  <div className="flex flex-col items-center">
-                    <Timer 
-                      initialTime={questionTimeLimit > 0 ? questionTimeLimit : 1} 
-                      currentTime={questionTimeLeft} 
-                      size="sm" 
-                      strokeWidth={6} 
-                      circleColor="#3a3a3a" 
-                      progressColor={questionTimeLeft <= 5 ? '#ef4444' : '#4CAF50'} 
-                      textColor="#ffffff" onComplete={handleQuestionTimeout} />
-                  </div>
-                  {/* Score e animação */}
-                  <div>
-                    <div className="text-pistachio font-bold text-[40px]">{score}</div>
-                    {showPointsAnimation && (
-                        <div className={`absolute -top-2 right-0 text-4xl font-bold animate-float ${pointsEarned > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {pointsEarned > 0 ? `+${pointsEarned}` : '0'}
-                        </div>
-                    )}
-                  </div>
-               </div>
+              <div>
+                <h2 className="text-white font-semibold text-[50px]">{quiz.topic}</h2>
+                <span className="text-gray-400 text-[35px]">Questão {questionNumber}</span>
+              </div>
+              <div className="text-right relative flex items-center gap-6">
+                {/* Timer da questão */}
+                <div className="w-full flex justify-center items-center mt-6 mb-4">
+                  <Timer
+                    initialTime={questionTimeLimit > 0 ? questionTimeLimit : 1}
+                    currentTime={questionTimeLeft}
+                    size="sm"
+                    strokeWidth={6}
+                    circleColor="#3a3a3a"
+                    progressColor={questionTimeLeft <= 5 ? '#ef4444' : '#4CAF50'}
+                    textColor="#ffffff" onComplete={handleQuestionTimeout} />
+                </div>
+                {/* Score e animação */}
+                <div>
+                  <div className="text-pistachio font-bold text-[40px]">{score}</div>
+                  {showPointsAnimation && (
+                    <div className={`absolute -top-2 right-0 text-4xl font-bold animate-float ${pointsEarned > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {pointsEarned > 0 ? `+${pointsEarned}` : '0'}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             {/* Barra de progresso */}
             <div className="w-full bg-darkGunmetal rounded-full h-2">
-                <div className="bg-pistachio h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+              <div className="bg-pistachio h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
 
           {/* Área da Pergunta */}
           <div className="bg-raisinBlack rounded-lg shadow-xl p-14 flex flex-col justify-center items-center gap-8">
             <h3 className="text-3xl text-center font-bold text-white mb-8">{currentQuestion.value}</h3>
-            
+
             <div className="grid grid-cols-2 grid-rows-2 gap-4 w-[660px]">
               {answersArray.map((answer, index) => {
-                 // Lógica de CSS (cut-right-bottom, etc) mantida
-                 const cutClass = index === 0 ? 'cut-right-bottom' : index === 1 ? 'cut-left-bottom' : index === 2 ? 'cut-right-top' : 'cut-left-top';
-                 const fontSize = answer.description.length > 50 ? 'text-xl' : 'text-[30px]'; // Simplificado para exemplo
+                // Lógica de CSS (cut-right-bottom, etc) mantida
+                const cutClass = index === 0 ? 'cut-right-bottom' : index === 1 ? 'cut-left-bottom' : index === 2 ? 'cut-right-top' : 'cut-left-top';
+                const fontSize = answer.description.length > 50 ? 'text-xl' : 'text-[30px]'; // Simplificado para exemplo
 
-                 return (
-                   <button
-                     key={answer.answerId}
-                     onClick={() => handleSelectAnswer(answer.answerId)}
-                     disabled={isAnswerSubmitted}
-                     className={`font-semibold w-[322px] h-[165px] ${fontSize} text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button ${cutClass} ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}`}
-                   >
-                     <div className="flex items-center justify-center">
-                       <span className="flex-1 break-words">{answer.description}</span>
-                     </div>
-                   </button>
-                 );
+                return (
+                  <button
+                    key={answer.answerId}
+                    onClick={() => handleSelectAnswer(answer.answerId)}
+                    disabled={isAnswerSubmitted}
+                    className={`font-semibold w-[322px] h-[165px] ${fontSize} text-center p-4 transition-all duration-500 rounded-[10px] ${getAnswerStyle(answer)} answer-button ${cutClass} ${isAnswerSubmitted ? 'cursor-not-allowed' : ''}`}
+                  >
+                    <div className="flex items-center justify-center">
+                      <span className="flex-1 break-words">{answer.description}</span>
+                    </div>
+                  </button>
+                );
               })}
             </div>
           </div>
